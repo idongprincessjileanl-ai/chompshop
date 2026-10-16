@@ -1,4 +1,4 @@
-# Chom Shop API image. Build from the REPOSITORY ROOT (it needs backend/ and frontend/):
+# Chomp Shop API image. Build from the REPOSITORY ROOT (it needs backend/ and frontend/):
 #   docker build -f backend/Dockerfile -t chomshop-app .
 FROM node:20-alpine
 

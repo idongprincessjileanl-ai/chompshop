@@ -1,4 +1,4 @@
-# Chom Shop: full stack with a load balancer.
+# Chomp Shop: full stack with a load balancer.
 #   docker compose up -d --build            start everything (2 app copies)
 #   docker compose up -d --scale app=4      scale to 4 app copies, then: docker compose restart nginx
 #   docker compose logs -f app              watch the logs

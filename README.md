@@ -1,4 +1,4 @@
-# Chom Shop
+# Chomp Shop
 
 An e-commerce platform for electronics (Arduino, sensors, PC parts) with **demand forecasting**, an **AI fraud check** for payments, and a **staff portal** for orders, riders, and reports.
 
@@ -9,7 +9,7 @@ An e-commerce platform for electronics (Arduino, sensors, PC parts) with **deman
 ## Project structure
 
 ```
-chomshop/
+chompshop/
 ├── frontend/                  ← what the visitor sees in the browser
 │   └── public/
 │       ├── index.html         online store (customers)

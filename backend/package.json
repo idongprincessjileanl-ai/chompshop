@@ -1,9 +1,9 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "chom-shop",
+  "name": "chomp-shop",
   "version": "1.0.0",
   "private": true,
-  "description": "Chom Shop e-commerce with demand forecasting (ChompCart database)",
+  "description": "Chomp Shop e-commerce with demand forecasting (ChompCart database)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
