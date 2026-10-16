@@ -1376,6 +1376,41 @@ footer img { background: none; padding: 0; height: 64px; filter: drop-shadow(0 6
 .cc-error { min-height: 16px; margin: 8px 0 0; color: var(--red); font-size: 13px; font-weight: 600; }
 .cc-demo { margin: 8px 0 0; padding: 10px 12px; border-radius: 10px; background: rgba(201,162,63,0.12); color: var(--gold-dark); font-size: 12.5px; line-height: 1.5; }
 :root[data-theme="dark"] .cc-demo { color: var(--gold-light); }
+
+.cc-demo-btn { width: 100%; margin: 2px 0 0; padding: 10px 12px; border: 1px dashed var(--gold); border-radius: 10px; background: rgba(201,162,63,0.10); color: var(--gold-dark); font: 700 13px var(--display); letter-spacing: 0.04em; cursor: pointer; box-shadow: none; }
+.cc-demo-btn:hover { background: var(--gold); color: var(--navy-deep); border-style: solid; }
+:root[data-theme="dark"] .cc-demo-btn { color: var(--gold-light); }
+.pf-democard { margin-top: 14px; padding: 14px 16px; border-radius: 14px; border: 1px dashed var(--gold); background: linear-gradient(135deg, #13254a, #243b6b); color: #fff; }
+.pf-democard > b { display: block; font: 700 10px var(--display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold-light); margin-bottom: 6px; }
+.pf-dc-num { font: 600 18px var(--mono); letter-spacing: 1.5px; }
+.pf-dc-meta { display: flex; flex-wrap: wrap; gap: 12px; margin: 6px 0 4px; font: 600 12px var(--mono); color: #c9d2e6; }
+.pf-dc-meta .pf-dc-brand { margin-left: auto; color: var(--gold-light); font-family: var(--display); letter-spacing: 0.06em; }
+.pf-democard small { color: rgba(255,255,255,0.65); font-size: 11px; }
+
+/* ===== Slide-in menu drawer ===== */
+.drawer-backdrop { position: fixed; inset: 0; z-index: 300; background: rgba(8, 17, 38, 0.55); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); opacity: 0; visibility: hidden; transition: opacity .28s ease, visibility .28s ease; }
+.drawer-backdrop.open { opacity: 1; visibility: visible; }
+.drawer {
+    position: fixed; top: 0; left: 0; height: 100%; width: 310px; max-width: 84vw; z-index: 310;
+    background: var(--card); color: var(--text); box-shadow: 18px 0 50px rgba(8, 17, 38, 0.35);
+    display: flex; flex-direction: column; transform: translateX(-100%); transition: transform .32s cubic-bezier(.2,.85,.25,1); will-change: transform;
+}
+.drawer.open { transform: none; }
+.drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 20px 16px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(135deg, var(--navy-deep), var(--brand)); }
+.drawer-title { font: 800 14px var(--display); letter-spacing: 0.18em; text-transform: uppercase; color: var(--gold-light); }
+.drawer-close { margin: 0; width: 34px; height: 34px; padding: 0; border-radius: 9px; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08); color: #fff; font-size: 22px; line-height: 1; cursor: pointer; box-shadow: none; }
+.drawer-close:hover { background: var(--gold); color: var(--navy-deep); border-color: var(--gold); }
+.drawer-links { display: flex; flex-direction: column; padding: 12px 10px; gap: 2px; flex: 1; }
+.drawer-links a { display: flex; align-items: center; gap: 14px; padding: 15px 16px; border-radius: 12px; color: var(--text); font: 600 15px var(--sans); text-decoration: none; text-transform: none; letter-spacing: 0; border: 0; transition: background .18s ease, transform .18s ease; }
+.drawer-links a span { font-size: 20px; width: 24px; text-align: center; }
+.drawer-links a:hover { background: var(--bg); transform: translateX(4px); }
+.drawer-links a:hover { color: var(--navy); }
+:root[data-theme="dark"] .drawer-links a:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+.drawer-foot { padding: 16px 20px; border-top: 1px solid var(--line); font: 800 16px var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--navy); }
+.drawer-foot span { color: var(--gold-dark); }
+:root[data-theme="dark"] .drawer-foot span { color: var(--gold-light); }
+@media (prefers-reduced-motion: reduce) { .drawer { transition: none; } }
 </style>
 <script>
 (function () {
@@ -1502,15 +1537,23 @@ footer img { background: none; padding: 0; height: 64px; filter: drop-shadow(0 6
 <nav>
     <div class="nav-left">
     <div class="menu-wrap">
-        <button class="menu-btn" id="menuBtn" aria-label="More menu" aria-haspopup="true" aria-expanded="false" onclick="toggleMenu(event)">&#9776;</button>
-        <div class="menu-dropdown" id="menuDropdown" role="menu">
-            <a href="#/company" role="menuitem" onclick="return openCompany('aboutTop')">&#8505;&#65039; About Us</a>
-            <a href="#/company" role="menuitem" onclick="return openCompany('faqSection')">&#10067; Help Center</a>
-            <a href="#/company" role="menuitem" onclick="return openCompany('contactSection')">&#128222; Contact Us</a>
-            <a href="#/company" role="menuitem" onclick="return openCompany('paySection')">&#128666; Shipping &amp; Returns</a>
-            <a href="#/company" role="menuitem" onclick="return openCompany('paySection')">&#128179; Payment Options</a>
-        </div>
+        <button class="menu-btn" id="menuBtn" aria-label="Open menu" aria-haspopup="true" aria-expanded="false" onclick="toggleMenu(event)">&#9776;</button>
     </div>
+    <div class="drawer-backdrop" id="drawerBackdrop" onclick="closeMenu()"></div>
+    <aside class="drawer" id="menuDropdown" role="dialog" aria-modal="true" aria-label="Menu" aria-hidden="true">
+        <div class="drawer-head">
+            <span class="drawer-title">Menu</span>
+            <button class="drawer-close" onclick="closeMenu()" aria-label="Close menu">&times;</button>
+        </div>
+        <nav class="drawer-links">
+            <a href="#/company" onclick="return openCompany('aboutTop')"><span>&#8505;&#65039;</span> About Us</a>
+            <a href="#/company" onclick="return openCompany('faqSection')"><span>&#10067;</span> Help Center</a>
+            <a href="#/company" onclick="return openCompany('contactSection')"><span>&#128222;</span> Contact Us</a>
+            <a href="#/company" onclick="return openCompany('paySection')"><span>&#128666;</span> Shipping &amp; Returns</a>
+            <a href="#/company" onclick="return openCompany('paySection')"><span>&#128179;</span> Payment Options</a>
+        </nav>
+        <div class="drawer-foot">Chomp <span>Shop</span></div>
+    </aside>
     <button class="theme-btn" id="themeBtn" type="button" aria-label="Toggle dark mode" title="Toggle dark / light mode" onclick="toggleTheme()">🌙</button>
     <a class="brand" href="#/shop"><img src="logo-chip.png" alt="" onerror="if(!this.dataset.retry){this.dataset.retry=1;this.src='images/withbackground.jpg'}else{this.remove()}">Chomp <span class="gold">Shop</span></a>
     </div>
@@ -1665,7 +1708,8 @@ footer img { background: none; padding: 0; height: 64px; filter: drop-shadow(0 6
                         <div><label for="ccCvvInput">CVV</label><input id="ccCvvInput" inputmode="numeric" autocomplete="cc-csc" placeholder="123" maxlength="4"></div>
                     </div>
                     <p id="ccError" class="cc-error"></p>
-                    <p class="cc-demo">🔒 Test mode — no real charge. Try <b>4242 4242 4242 4242</b>, any future date, any CVV.</p>
+                    <button type="button" class="cc-demo-btn" onclick="fillDemoCard()">⚡ Use my demo card</button>
+                    <p class="cc-demo">🔒 Test mode — no real charge. Tap “Use my demo card”, or try <b>4242 4242 4242 4242</b> with any future date and CVV.</p>
                 </div>
             </div>
 
@@ -2228,6 +2272,17 @@ function openProfile() {
     row("Role", u.role || "Customer");
     row("Member of", "Chomp Shop");
     body.appendChild(info);
+
+    // Each customer gets a demo (test-only) card for trying out checkout
+    const dc = demoCard(u.id);
+    const dcard = el("div", "pf-democard");
+    dcard.appendChild(el("b", null, "Your demo test card"));
+    dcard.appendChild(el("div", "pf-dc-num", dc.pretty));
+    const meta = el("div", "pf-dc-meta");
+    meta.append(el("span", null, "Exp " + dc.exp), el("span", null, "CVV " + dc.cvv), el("span", "pf-dc-brand", "VISA · TEST"));
+    dcard.appendChild(meta);
+    dcard.appendChild(el("small", null, "For testing checkout only — not a real card."));
+    body.appendChild(dcard);
 
     const actions = el("div", "co-actions");
     const close = el("button", "co-cancel", "Close");
@@ -3374,15 +3429,21 @@ window.addEventListener("hashchange", () => showView(currentView()));
 function toggleMenu(e) {
     if (e) e.stopPropagation();
     const d = $("menuDropdown");
-    const open = d.classList.toggle("open");
+    const open = !d.classList.contains("open");
+    d.classList.toggle("open", open);
+    const bg = $("drawerBackdrop"); if (bg) bg.classList.toggle("open", open);
+    d.setAttribute("aria-hidden", open ? "false" : "true");
     $("menuBtn").setAttribute("aria-expanded", open ? "true" : "false");
+    document.documentElement.style.overflow = open ? "hidden" : "";
 }
 function closeMenu() {
     const d = $("menuDropdown");
     if (!d) return;
     d.classList.remove("open");
-    const b = $("menuBtn");
-    if (b) b.setAttribute("aria-expanded", "false");
+    const bg = $("drawerBackdrop"); if (bg) bg.classList.remove("open");
+    d.setAttribute("aria-hidden", "true");
+    const b = $("menuBtn"); if (b) b.setAttribute("aria-expanded", "false");
+    document.documentElement.style.overflow = "";
 }
 function openCompany(section) {
     closeMenu();
@@ -3397,7 +3458,7 @@ function openCompany(section) {
     }
     return false;
 }
-document.addEventListener("click", e => { if (!e.target.closest(".menu-wrap")) closeMenu(); });
+// (drawer closes via its backdrop, the × button, Esc, or choosing an item)
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeMenu(); });
 
 // ---------- Dark / light theme ----------
@@ -3510,6 +3571,29 @@ function cardValid(showError) {
     return true;
 }
 function cardLast4() { const d = ($("ccInput").value.match(/\d/g) || []).join(""); return d.slice(-4); }
+
+// A unique demo (test-only) card per customer, derived from their account id. Not a real card.
+function luhnCheckDigit(body) {
+    let sum = 0, alt = true;
+    for (let i = body.length - 1; i >= 0; i--) { let n = +body[i]; if (alt) { n *= 2; if (n > 9) n -= 9; } sum += n; alt = !alt; }
+    return (10 - (sum % 10)) % 10;
+}
+function demoCard(id) {
+    id = Number(id) || 0;
+    const body = ("4000" + String(id).padStart(11, "0")).slice(0, 15);
+    const number = body + luhnCheckDigit(body);
+    const cvv = String((id * 7 + 137) % 900 + 100);
+    return { number, pretty: number.replace(/(.{4})/g, "$1 ").trim(), cvv, exp: "12/29" };
+}
+function fillDemoCard() {
+    if (!auth) return;
+    const d = demoCard(auth.user.id);
+    $("ccInput").value = d.pretty; $("ccInput").dispatchEvent(new Event("input"));
+    $("ccHolder").value = auth.user.name || "Demo Customer";
+    $("ccExpInput").value = d.exp; $("ccExpInput").dispatchEvent(new Event("input"));
+    $("ccCvvInput").value = d.cvv; $("ccCvvInput").dispatchEvent(new Event("input"));
+    updateCardPreview(); clearCardError();
+}
 wireCard();
 
 
