@@ -1,0 +1,109 @@
+# CI/CD for Chomp Shop
+#  - Every push / pull request: start MySQL, load the database, start the API, run the tests.
+#  - Push to main: build the Docker image and publish it to GitHub Container Registry (ghcr.io).
+#  - Then, if the DEPLOY_HOOK_URL secret is set, tell the hosting service to deploy the new image.
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s --health-timeout=5s --health-retries=20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_STAFF_USER: chomp_staff
+      DB_STAFF_PASSWORD: Chomp-Staff-2026!
+      DB_CUSTOMER_USER: chomp_customer
+      DB_CUSTOMER_PASSWORD: Chomp-Customer-2026!
+      JWT_SECRET: ci-only-secret
+      PORT: 3001
+      BASE_URL: http://localhost:3001
+    defaults:
+      run:
+        working-directory: backend   # server code lives in backend/
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Syntax check
+        run: npm run check
+      - name: Load the database (files 01 to 11, without the 07 demo)
+        run: |
+          for f in 01_02_tables_and_products 03_seed_users_orders 04_views 05_stored_procedures \
+                   06_triggers 08_product_images 09_drivers_and_feedback 10_security_rls \
+                   11_saved_cart_and_ai_fraud; do
+            echo "Loading $f"
+            mysql -h 127.0.0.1 -uroot -proot --default-character-set=utf8mb4 < database/$f.sql > /dev/null
+          done
+      - name: Start the API
+        run: |
+          node server.js > server.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:3001/api/health && break; sleep 2; done
+          sleep 3   # give it time to set the demo passwords
+      - name: Run tests
+        run: npm test
+      - name: Server log (if something failed)
+        if: failure()
+        run: cat server.log
+
+  docker:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest
+            type=sha
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+
+  deploy:
+    needs: docker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger deploy on the hosting service
+        env:
+          DEPLOY_HOOK_URL: ${{ secrets.DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$DEPLOY_HOOK_URL" ]; then
+            echo "DEPLOY_HOOK_URL secret is not set: skipping deploy (image is on ghcr.io)."
+          else
+            curl -fsS -X POST "$DEPLOY_HOOK_URL" && echo "Deploy triggered."
+          fi
