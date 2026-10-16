@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "chom-shop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chom Shop e-commerce with demand forecasting (ChompCart database)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js",
+    "test": "node --test tests/",
+    "backup": "node scripts/backup.js",
+    "restore": "node scripts/restore.js",
+    "link-images": "node scripts/link-images.js",
+    "run-sql": "node scripts/run-sql.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.3",
+    "express-rate-limit": "^7.5.1",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.4.0",
+    "mysql2": "^3.24.6"
+  }
+}

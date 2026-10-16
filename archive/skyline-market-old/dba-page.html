@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skyline Market | Database Administrators</title>
+<style>
+:root{--bg:#f4f8fc;--card:#fff;--tx:#14233a;--mut:#5b6b82;--ac:#2f7de1;--bd:#d9e3f0;--code:#0f1e33;--codetx:#cfe3ff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1523;--card:#142036;--tx:#e6eefb;--mut:#93a4bd;--ac:#5aa2ff;--bd:#25354f}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}
+header{padding:56px 20px 40px;text-align:center;background:linear-gradient(160deg,#2f7de1,#6cc1ff);color:#fff}
+header h1{margin:0 0 8px;font-size:clamp(1.8rem,5vw,2.8rem)}
+header p{margin:0 auto;max-width:640px;opacity:.95}
+main{max-width:980px;margin:0 auto;padding:24px 16px 60px}
+section{margin:36px 0}
+h2{font-size:1.5rem;margin:0 0 12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px}
+.card h3{margin:0 0 6px;font-size:1.05rem;color:var(--ac)}
+.card p{margin:0;color:var(--mut);font-size:.95rem}
+pre{background:var(--code);color:var(--codetx);padding:14px;border-radius:10px;overflow-x:auto;font-size:.85rem;margin:0}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+td,th{border:1px solid var(--bd);padding:6px 10px;text-align:left}
+th{background:var(--card)}
+svg text{fill:var(--tx);font:12px system-ui,sans-serif}
+.box{fill:var(--card);stroke:var(--ac);stroke-width:1.5}
+.ln{stroke:var(--mut);stroke-width:1.5;fill:none}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+select,input,textarea,button{font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--tx)}
+button{background:var(--ac);color:#fff;border:0;cursor:pointer}
+button.del{background:#d64545}
+textarea{width:100%;min-height:90px;font-family:ui-monospace,monospace}
+#out{min-height:100px;white-space:pre-wrap}
+.pic{height:140px;border-radius:8px;background:var(--bg);border:1px dashed var(--bd);display:flex;align-items:center;justify-content:center;color:var(--mut);overflow:hidden;margin-bottom:8px;font-size:.9rem}
+.pic img{width:100%;height:100%;object-fit:cover}
+.pcard input[type=file]{width:100%;font-size:.8rem;padding:4px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Database Administrators</h1>
+  <p>Designs the ERD, normalizes tables, writes complex SQL (views, stored procedures, triggers), and manages schema generation for Skyline Market, an e-commerce platform with demand forecasting.</p>
+</header>
+<main>
+
+<section>
+  <h2>Responsibilities</h2>
+  <div class="grid">
+    <div class="card"><h3>1. Design the ERD</h3><p>Model products, customers, orders and forecasts with clear one-to-many relationships.</p></div>
+    <div class="card"><h3>2. Normalize tables</h3><p>Bring every table to 3NF to remove redundancy and update anomalies.</p></div>
+    <div class="card"><h3>3. Write complex SQL</h3><p>Views, stored procedures and triggers that enforce rules inside the database.</p></div>
+    <div class="card"><h3>4. Manage schema generation</h3><p>One repeatable <code>schema.sql</code> that builds the database and seed data.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Entity Relationship Diagram</h2>
+  <div class="card scroll">
+  <svg viewBox="0 0 760 320" width="100%" style="min-width:640px" role="img" aria-label="ERD">
+    <rect class="box" x="20" y="20" width="190" height="80" rx="8"/><text x="32" y="40" font-weight="700">categories</text><text x="32" y="60">PK category_id</text><text x="32" y="78">name</text>
+    <rect class="box" x="285" y="20" width="190" height="100" rx="8"/><text x="297" y="40" font-weight="700">products</text><text x="297" y="60">PK product_id, FK category_id</text><text x="297" y="78">sku, name, price, stock</text>
+    <rect class="box" x="550" y="20" width="190" height="100" rx="8"/><text x="562" y="40" font-weight="700">demand_forecasts</text><text x="562" y="60">PK forecast_id, FK product_id</text><text x="562" y="78">forecast_date, predicted_units</text>
+    <rect class="box" x="20" y="210" width="190" height="80" rx="8"/><text x="32" y="230" font-weight="700">customers</text><text x="32" y="250">PK customer_id</text><text x="32" y="268">full_name, email</text>
+    <rect class="box" x="285" y="210" width="190" height="80" rx="8"/><text x="297" y="230" font-weight="700">orders</text><text x="297" y="250">PK order_id, FK customer_id</text><text x="297" y="268">status, order_date</text>
+    <rect class="box" x="550" y="210" width="190" height="90" rx="8"/><text x="562" y="230" font-weight="700">order_items</text><text x="562" y="250">PK item_id</text><text x="562" y="268">FK order_id, FK product_id</text><text x="562" y="286">quantity, unit_price</text>
+    <path class="ln" d="M210 60H285M475 60H550M210 250H285M475 250H550M450 120L590 210"/>
+    <text x="236" y="52">1:N</text><text x="500" y="52">1:N</text><text x="236" y="242">1:N</text><text x="500" y="242">1:N</text><text x="540" y="160">1:N</text>
+  </svg>
+  </div>
+</section>
+
+<section>
+  <h2>Normalization</h2>
+  <div class="grid">
+    <div class="card"><h3>1NF</h3><p>Atomic values only. Order lines live in <code>order_items</code>, not as a list inside <code>orders</code>.</p></div>
+    <div class="card"><h3>2NF</h3><p>No partial dependencies. Product details depend on <code>product_id</code>, not on the order line.</p></div>
+    <div class="card"><h3>3NF</h3><p>No transitive dependencies. Category names sit in <code>categories</code>, not repeated in <code>products</code>.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Advanced SQL objects</h2>
+  <div class="grid">
+    <div class="card"><h3>View</h3><p><code>v_daily_sales</code> aggregates units and revenue per product per day.</p></div>
+    <div class="card"><h3>Stored procedure</h3><p><code>sp_generate_forecast</code> writes a 7-day moving-average demand forecast.</p></div>
+    <div class="card"><h3>Triggers</h3><p>Block overselling, deduct stock, and audit every price change.</p></div>
+  </div>
+  <pre style="margin-top:14px">CREATE TRIGGER trg_order_items_before_insert
+BEFORE INSERT ON order_items FOR EACH ROW
+BEGIN
+  DECLARE v_stock INT; DECLARE v_price DECIMAL(10,2);
+  SELECT stock, price INTO v_stock, v_price
+    FROM products WHERE product_id = NEW.product_id;
+  IF v_stock &lt; NEW.quantity THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Insufficient stock';
+  END IF;
+  IF NEW.unit_price = 0 THEN SET NEW.unit_price = v_price; END IF;
+END</pre>
+</section>
+
+<section>
+  <h2>REST API (Node.js + Express)</h2>
+  <div class="card scroll">
+  <table>
+    <tr><th>Method</th><th>Endpoint</th><th>Action</th></tr>
+    <tr><td>GET</td><td>/api/{entity}</td><td>Read all</td></tr>
+    <tr><td>GET</td><td>/api/{entity}/:id</td><td>Read one</td></tr>
+    <tr><td>POST</td><td>/api/{entity}</td><td>Create</td></tr>
+    <tr><td>PUT</td><td>/api/{entity}/:id</td><td>Update</td></tr>
+    <tr><td>DELETE</td><td>/api/{entity}/:id</td><td>Delete</td></tr>
+    <tr><td>GET</td><td>/api/reports/daily-sales</td><td>Query the view</td></tr>
+    <tr><td>POST</td><td>/api/forecasts/generate</td><td>Call the stored procedure</td></tr>
+  </table>
+  </div>
+  <p style="color:var(--mut)">Entities: categories, products, customers, orders, order-items, forecasts.</p>
+</section>
+
+<section>
+  <h2>Products</h2>
+  <div class="card">
+    <div class="row">
+      <input id="pname" placeholder="Product name">
+      <input id="psku" placeholder="SKU" size="10">
+      <input id="pcat" type="number" placeholder="Category ID" value="1" style="width:110px">
+      <input id="pprice" type="number" placeholder="Price" style="width:100px">
+      <input id="pstock" type="number" placeholder="Stock" style="width:90px">
+    </div>
+    <div class="row" style="align-items:center">
+      <div class="pic" id="prev" style="width:90px;height:90px;margin:0">Picture</div>
+      <input id="pfile" type="file" accept="image/*">
+      <button id="padd">Add product</button>
+    </div>
+    <div id="pmsg" style="color:var(--mut);font-size:.9rem"></div>
+  </div>
+  <div class="grid" id="pgrid" style="margin-top:14px"></div>
+</section>
+
+<section>
+  <h2>Try the API</h2>
+  <div class="card">
+    <div class="row">
+      <select id="ent"></select>
+      <input id="id" placeholder="id (for one/update/delete)" size="22">
+    </div>
+    <textarea id="body" spellcheck="false"></textarea>
+    <div class="row">
+      <button data-m="GET">List / Get</button>
+      <button data-m="POST">Create</button>
+      <button data-m="PUT">Update</button>
+      <button data-m="DELETE" class="del">Delete</button>
+      <button id="fc">Generate forecast (procedure)</button>
+    </div>
+    <pre id="out">Run <code>node server.js</code>, then try a request.</pre>
+  </div>
+</section>
+
+</main>
+<script>
+const samples={
+  categories:{name:'Toys'},
+  products:{category_id:1,sku:'NEW-001',name:'New Product',price:199,stock:20},
+  customers:{full_name:'Jane Doe',email:'jane@example.com'},
+  orders:{customer_id:1,status:'pending'},
+  'order-items':{order_id:1,product_id:2,quantity:2},
+  forecasts:{product_id:1,forecast_date:'2026-12-01',predicted_units:10}
+};
+const ent=document.getElementById('ent'),body=document.getElementById('body'),out=document.getElementById('out'),idEl=document.getElementById('id');
+Object.keys(samples).forEach(k=>ent.add(new Option(k,k)));
+const fill=()=>body.value=JSON.stringify(samples[ent.value],null,2);
+ent.onchange=fill;fill();
+async function call(method,url,data){
+  try{
+    const r=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:data?JSON.stringify(data):undefined});
+    const t=await r.text();
+    out.textContent=method+' '+url+'\n'+r.status+' '+r.statusText+'\n\n'+(t?JSON.stringify(JSON.parse(t),null,2):'(empty)');
+  }catch(e){out.textContent='Request failed: '+e.message+'\nIs the server running?';}
+}
+document.querySelectorAll('button[data-m]').forEach(b=>b.onclick=()=>{
+  const m=b.dataset.m,id=idEl.value.trim(),url='/api/'+ent.value+(id&&m!=='POST'?'/'+id:'');
+  let data;
+  if(m==='POST'||m==='PUT'){try{data=JSON.parse(body.value)}catch(e){out.textContent='Invalid JSON';return;}}
+  call(m,url,data);
+});
+document.getElementById('fc').onclick=()=>call('POST','/api/forecasts/generate',{product_id:Number(idEl.value)||1,days:7});
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pmsg=document.getElementById('pmsg'),pfile=document.getElementById('pfile'),prev=document.getElementById('prev');
+async function uploadPic(id,file){
+  const fd=new FormData();fd.append('image',file);
+  const r=await fetch('/api/products/'+id+'/image',{method:'POST',body:fd});
+  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||'Upload failed');}
+}
+async function loadProducts(){
+  const g=document.getElementById('pgrid');
+  try{
+    const list=await (await fetch('/api/products')).json();
+    g.innerHTML='';
+    list.forEach(p=>{
+      const d=document.createElement('div');d.className='card pcard';
+      d.innerHTML='<div class="pic">'+(p.image_url?'<img src="'+esc(p.image_url)+'" alt="">':'No picture')+'</div><h3>'+esc(p.name)+'</h3><p>'+esc(p.sku)+' | P'+esc(p.price)+' | stock '+esc(p.stock)+'</p>';
+      const f=document.createElement('input');f.type='file';f.accept='image/*';
+      f.onchange=async()=>{try{await uploadPic(p.product_id,f.files[0]);loadProducts();}catch(e){pmsg.textContent=e.message;}};
+      d.appendChild(f);g.appendChild(d);
+    });
+  }catch(e){g.innerHTML='<p style="color:var(--mut)">Could not load products. Is the server running?</p>';}
+}
+pfile.onchange=()=>{const f=pfile.files[0];prev.innerHTML=f?'<img src="'+URL.createObjectURL(f)+'" alt="">':'Picture';};
+document.getElementById('padd').onclick=async()=>{
+  try{
+    const v=id=>document.getElementById(id).value;
+    const r=await fetch('/api/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:v('pname'),sku:v('psku'),category_id:Number(v('pcat')),price:Number(v('pprice')),stock:Number(v('pstock'))||0})});
+    const p=await r.json();
+    if(!r.ok)throw new Error(p.detail||p.error);
+    if(pfile.files[0])await uploadPic(p.product_id,pfile.files[0]);
+    pmsg.textContent='Product added.';pfile.value='';prev.textContent='Picture';loadProducts();
+  }catch(e){pmsg.textContent='Error: '+e.message;}
+};
+loadProducts();
+</script>
+</body>
+</html>

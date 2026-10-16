@@ -1,0 +1,94 @@
+# Chom Shop: full stack with a load balancer.
+#   docker compose up -d --build            start everything (2 app copies)
+#   docker compose up -d --scale app=4      scale to 4 app copies, then: docker compose restart nginx
+#   docker compose logs -f app              watch the logs
+# Settings come from a .env file next to this one (copy backend/.env.example to ./.env).
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Set DB_ROOT_PASSWORD in .env}
+      TZ: Asia/Manila
+    command: --default-time-zone=+08:00 --max-connections=300
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./backend/database:/sql:ro
+      - ./docker/initdb.sh:/docker-entrypoint-initdb.d/initdb.sh:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  app:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: chomshop-app
+    restart: unless-stopped
+    deploy:
+      replicas: ${APP_REPLICAS:-2}
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      TRUST_PROXY: 1
+      DB_HOST: db
+      DB_NAME: chompcart
+      DB_USER: root
+      DB_PASSWORD: ${DB_ROOT_PASSWORD}
+      DB_STAFF_USER: chomp_staff
+      DB_STAFF_PASSWORD: ${DB_STAFF_PASSWORD:-Chomp-Staff-2026!}
+      DB_CUSTOMER_USER: chomp_customer
+      DB_CUSTOMER_PASSWORD: ${DB_CUSTOMER_PASSWORD:-Chomp-Customer-2026!}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-chomp123}
+      TZ: Asia/Manila
+    volumes:
+      - uploads:/app/backend/uploads   # shared by every app copy
+      - logs:/app/backend/logs
+      - backups:/app/backend/backups:ro
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+  # Daily database backup, keeps the last 7 days
+  backup:
+    image: mysql:8.0
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MYSQL_PWD: ${DB_ROOT_PASSWORD}
+      TZ: Asia/Manila
+    volumes:
+      - backups:/backups
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        while true; do
+          f=/backups/chompcart-$$(date +%F_%H%M).sql
+          mysqldump -h db -uroot --databases chompcart --single-transaction --routines --triggers --events --set-gtid-purged=OFF > $$f \
+            && echo "Backup saved: $$f" || echo "Backup FAILED"
+          find /backups -name 'chompcart-*.sql' -mtime +7 -delete
+          sleep 86400
+        done
+
+volumes:
+  db-data:
+  uploads:
+  logs:
+  backups:

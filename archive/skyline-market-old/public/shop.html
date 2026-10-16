@@ -1,0 +1,1253 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title> Chomp Shop | Online Shop</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    :root {
+      --blue: #2563eb;
+      --dark-blue: #1e40af;
+      --light-blue: #eff6ff;
+      --background: #f5f7fb;
+      --text: #1f2937;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --white: #ffffff;
+      --green: #15803d;
+      --red: #dc2626;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--text);
+      background: var(--background);
+    }
+
+    button, input, select {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+
+    header {
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .navbar {
+      max-width: 1200px;
+      margin: auto;
+      padding: 16px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      font-size: 23px;
+      font-weight: bold;
+      color: var(--blue);
+    }
+
+    nav {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+
+    nav a {
+      font-size: 14px;
+      color: #475569;
+    }
+
+    nav a:hover {
+      color: var(--blue);
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #dbeafe, #eff6ff, #ffffff);
+      padding: 55px 22px;
+    }
+
+    .hero-content {
+      max-width: 1150px;
+      margin: auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 30px;
+      flex-wrap: wrap;
+    }
+
+    .hero h1 {
+      font-size: clamp(32px, 5vw, 52px);
+      margin: 0 0 15px;
+      line-height: 1.1;
+    }
+
+    .hero h1 span {
+      color: var(--blue);
+    }
+
+    .hero p {
+      color: #475569;
+      line-height: 1.7;
+      max-width: 560px;
+    }
+
+    .hero-badge {
+      background: white;
+      padding: 25px;
+      border-radius: 20px;
+      box-shadow: 0 8px 30px #1e40af12;
+      font-size: 48px;
+      text-align: center;
+      min-width: 150px;
+    }
+
+    .hero-badge small {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 10px;
+    }
+
+    .btn {
+      padding: 11px 16px;
+      border-radius: 9px;
+      background: var(--blue);
+      color: white;
+      font-weight: bold;
+    }
+
+    .btn:hover {
+      background: var(--dark-blue);
+    }
+
+    .btn.secondary {
+      background: #e2e8f0;
+      color: #1e293b;
+    }
+
+    .btn.secondary:hover {
+      background: #cbd5e1;
+    }
+
+    .btn.danger {
+      background: #fee2e2;
+      color: var(--red);
+    }
+
+    .btn.small {
+      padding: 8px 11px;
+      font-size: 13px;
+    }
+
+    main {
+      max-width: 1200px;
+      margin: auto;
+      padding: 30px 22px 55px;
+    }
+
+    section {
+      margin-bottom: 38px;
+      scroll-margin-top: 90px;
+    }
+
+    .section-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 15px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 25px;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .search-bar {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      max-width: 550px;
+    }
+
+    input, select {
+      width: 100%;
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 9px;
+      background: white;
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px #2563eb18;
+    }
+
+    .products {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+      gap: 18px;
+    }
+
+    .product-card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .product-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 25px #0f172a0c;
+    }
+
+    .product-image {
+      height: 175px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--light-blue);
+      color: #93c5fd;
+      font-size: 55px;
+      overflow: hidden;
+    }
+
+    .product-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .product-info {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      gap: 9px;
+    }
+
+    .product-info h3 {
+      margin: 0;
+      font-size: 17px;
+    }
+
+    .price {
+      color: var(--blue);
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .stock {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .product-info .btn {
+      margin-top: auto;
+    }
+
+    .panel {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px;
+      margin-bottom: 20px;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: end;
+    }
+
+    .field {
+      flex: 1;
+      min-width: 160px;
+    }
+
+    .field label {
+      display: block;
+      margin-bottom: 7px;
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    .cart-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(240px, 0.8fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    .cart-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 15px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .cart-item:last-child {
+      border-bottom: 0;
+    }
+
+    .cart-item h4 {
+      margin: 0 0 7px;
+    }
+
+    .cart-total {
+      font-size: 27px;
+      font-weight: bold;
+      color: var(--blue);
+      margin: 12px 0 20px;
+    }
+
+    .notice {
+      padding: 13px 15px;
+      border-radius: 9px;
+      margin: 15px 0;
+      font-size: 14px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    .notice.info {
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+
+    .notice.success {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .notice.error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .empty {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 35px 15px;
+      color: var(--muted);
+      background: white;
+      border: 1px dashed #cbd5e1;
+      border-radius: 12px;
+    }
+
+    .vendor-list {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+
+    .vendor-chip {
+      background: var(--light-blue);
+      color: #1d4ed8;
+      padding: 10px 13px;
+      border-radius: 9px;
+      font-size: 13px;
+    }
+
+    footer {
+      background: #0f172a;
+      color: #cbd5e1;
+      text-align: center;
+      padding: 28px 20px;
+      font-size: 13px;
+      line-height: 1.8;
+    }
+
+    @media (max-width: 700px) {
+      .cart-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .navbar {
+        justify-content: center;
+      }
+
+      nav {
+        justify-content: center;
+      }
+
+      .hero {
+        padding: 38px 20px;
+      }
+
+      .hero-badge {
+        display: none;
+      }
+
+      .search-bar {
+        max-width: none;
+      }
+
+      .search-bar input {
+        width: 100%;
+      }
+
+      main {
+        padding: 24px 15px 40px;
+      }
+
+      .panel {
+        padding: 16px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <div class="navbar">
+    <a class="brand" href="#home">☁ Chomp Shop</a>
+
+    <nav>
+      <a href="#products">Products</a>
+      <a href="#cart-section">My Cart</a>
+      <a href="#recommendations">For You</a>
+      <a href="#shipping">Track Order</a>
+      <a href="#vendors">Vendors</a>
+      <a href="/">DBA Overview</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero" id="home">
+  <div class="hero-content">
+    <div>
+      <h1>Shop smarter.<br><span>Live better.</span></h1>
+      <p>
+        Welcome to Chomp Shop! Discover useful products,
+        add your favorites to your cart, and manage your orders
+        in one simple online store.
+      </p>
+      <a class="btn" href="#products">Shop Now →</a>
+    </div>
+
+    <div class="hero-badge">
+      🛍️
+      <small>Your everyday marketplace</small>
+    </div>
+  </div>
+</div>
+
+<main>
+
+  <div id="global-message" class="notice hidden"></div>
+
+  <section id="products">
+    <div class="section-heading">
+      <div>
+        <h2>Our Products</h2>
+        <p class="muted">Find something you like.</p>
+      </div>
+
+      <div class="search-bar">
+        <input id="q" type="search"
+               placeholder="Search products..."
+               aria-label="Search products">
+        <button class="btn" onclick="searchProducts()">Search</button>
+      </div>
+    </div>
+
+    <div id="search-message" class="notice hidden"></div>
+    <div id="pgrid" class="products">
+      <div class="empty">Loading products...</div>
+    </div>
+  </section>
+
+  <section id="cart-section">
+    <div class="section-heading">
+      <div>
+        <h2>My Shopping Cart</h2>
+        <p class="muted">Review your items before checkout.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="form-row">
+        <div class="field">
+          <label for="cust">Customer ID</label>
+          <input id="cust" type="number" min="1" value="1">
+        </div>
+        <button class="btn secondary" onclick="startNewCart()">
+          Start New Cart
+        </button>
+      </div>
+      <p class="muted">
+        This demo uses an existing customer ID from your database.
+      </p>
+    </div>
+
+    <div class="cart-layout">
+      <div class="panel">
+        <div id="cart-items">
+          <div class="empty">Your cart is empty.</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Order Summary</h3>
+        <p class="muted">Total amount</p>
+        <div id="cart-total" class="cart-total">₱0.00</div>
+        <button id="checkout-btn" class="btn"
+                style="width:100%" onclick="checkout()">
+          Proceed to Checkout
+        </button>
+        <p class="muted">
+          The final price and available stock are checked by the server.
+        </p>
+        <div id="checkout-message" class="notice hidden"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="recommendations">
+    <div class="section-heading">
+      <div>
+        <h2>Recommended for You</h2>
+        <p class="muted">Explore products you may like.</p>
+      </div>
+      <button class="btn secondary" onclick="loadRecommendations()">
+        Refresh Recommendations
+      </button>
+    </div>
+
+    <div id="recommendation-grid" class="products">
+      <div class="empty">Click the button to load recommendations.</div>
+    </div>
+  </section>
+
+  <section id="shipping">
+    <div class="section-heading">
+      <div>
+        <h2>Track Your Order</h2>
+        <p class="muted">Check the shipment status of your order.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="form-row">
+        <div class="field">
+          <label for="track-order-id">Order ID</label>
+          <input id="track-order-id" type="number" min="1"
+                 placeholder="Enter order ID">
+        </div>
+        <button class="btn" onclick="trackOrder()">Track Order</button>
+      </div>
+
+      <div id="shipping-details"></div>
+
+      <p class="muted">
+        Shipment status updates are intended for authorized staff.
+        This public demo does not provide secure admin authentication.
+      </p>
+    </div>
+  </section>
+
+  <section id="vendors">
+    <div class="section-heading">
+      <div>
+        <h2>Our Vendors</h2>
+        <p class="muted">Suppliers listed in the marketplace.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div id="vendor-list" class="vendor-list">
+        <span class="muted">Loading vendors...</span>
+      </div>
+    </div>
+
+    <details class="panel">
+      <summary style="cursor:pointer;font-weight:bold">
+        Add a Vendor (Demo/Admin)
+      </summary>
+
+      <p class="muted">
+        For development testing only. Add authentication before
+        making vendor management available publicly.
+      </p>
+
+      <form id="vendor-form" class="form-row">
+        <div class="field">
+          <label for="vendor-name">Vendor Name</label>
+          <input id="vendor-name" required maxlength="120"
+                 placeholder="Vendor name">
+        </div>
+
+        <div class="field">
+          <label for="vendor-email">Vendor Email</label>
+          <input id="vendor-email" type="email" required maxlength="150"
+                 placeholder="vendor@example.com">
+        </div>
+
+        <button class="btn" type="submit">Add Vendor</button>
+      </form>
+      <div id="vendor-message" class="notice hidden"></div>
+    </details>
+  </section>
+
+</main>
+
+<footer>
+  <strong>Chomp Shop</strong><br>
+  E-Commerce Platform with Demand Forecasting<br>
+  <span>Powered by HTML, CSS, JavaScript, Node.js, Express and MySQL.</span>
+</footer>
+
+<script>
+  const $ = id => document.getElementById(id);
+
+  let products = [];
+  let vendors = [];
+  let cartId = localStorage.getItem('ChompCartId') || null;
+  let currentCart = null;
+
+  function escapeHTML(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    })[char]);
+  }
+
+  function money(value) {
+    return Number(value || 0).toLocaleString('en-PH', {
+      style: 'currency',
+      currency: 'PHP'
+    });
+  }
+
+  function showMessage(id, message, type = 'info') {
+    const element = $(id);
+    element.textContent = message;
+    element.className = 'notice ' + type;
+  }
+
+  function hideMessage(id) {
+    $(id).className = 'notice hidden';
+  }
+
+  async function api(method, url, body) {
+    const options = {
+      method,
+      headers: {}
+    };
+
+    if (body !== undefined) {
+      options.headers['Content-Type'] = 'application/json';
+      options.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(url, options);
+    const text = await response.text();
+
+    let data = null;
+
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = text;
+      }
+    }
+
+    if (!response.ok) {
+      const message = data && typeof data === 'object'
+        ? data.error || data.message
+        : data;
+
+      throw new Error(message || `Request failed (${response.status})`);
+    }
+
+    return data;
+  }
+
+  function getArray(data) {
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.products)) return data.products;
+    if (data && Array.isArray(data.results)) return data.results;
+    if (data && Array.isArray(data.recommendations)) {
+      return data.recommendations;
+    }
+    if (data && Array.isArray(data.items)) return data.items;
+    if (data && Array.isArray(data.vendors)) return data.vendors;
+    if (data && Array.isArray(data.data)) return data.data;
+    return [];
+  }
+
+  function productId(product) {
+    return product.product_id ?? product.id;
+  }
+
+  function productImage(product) {
+    const url = product.image_url;
+
+    if (!url) {
+      return '<span aria-hidden="true">🛍️</span>';
+    }
+
+    return `<img src="${escapeHTML(url)}"
+                 alt="${escapeHTML(product.name)}"
+                 onerror="this.parentElement.innerHTML='🛍️'">`;
+  }
+
+  function renderProducts(list, targetId = 'pgrid') {
+    const target = $(targetId);
+
+    if (!list.length) {
+      target.innerHTML =
+        '<div class="empty">No products found.</div>';
+      return;
+    }
+
+    target.innerHTML = list.map(product => {
+      const id = productId(product);
+      const stock = Number(product.stock || 0);
+      const available = stock > 0;
+
+      return `
+        <article class="product-card">
+          <div class="product-image">
+            ${productImage(product)}
+          </div>
+
+          <div class="product-info">
+            <h3>${escapeHTML(product.name)}</h3>
+            <div class="price">${money(product.price)}</div>
+            <div class="stock">
+              ${available ? `Stock: ${stock}` : 'Out of stock'}
+            </div>
+
+            <button class="btn"
+                    ${available ? '' : 'disabled'}
+                    onclick="addToCart(${Number(id)})">
+              ${available ? 'Add to Cart' : 'Unavailable'}
+            </button>
+          </div>
+        </article>
+      `;
+    }).join('');
+  }
+
+  async function loadProducts() {
+    try {
+      const data = await api('GET', '/api/products');
+      products = getArray(data);
+      renderProducts(products);
+    } catch (error) {
+      $('pgrid').innerHTML =
+        '<div class="empty">Could not load products. Check your server and database.</div>';
+      showMessage('global-message', error.message, 'error');
+    }
+  }
+
+  async function loadVendors() {
+    try {
+      const data = await api('GET', '/api/vendors');
+      vendors = getArray(data);
+
+      $('vendor-list').innerHTML = vendors.length
+        ? vendors.map(vendor => `
+            <div class="vendor-chip">
+              🏪 ${escapeHTML(vendor.name)}
+            </div>
+          `).join('')
+        : '<span class="muted">No vendors found.</span>';
+    } catch (error) {
+      $('vendor-list').textContent =
+        'Could not load vendors: ' + error.message;
+    }
+  }
+
+  async function searchProducts() {
+    const query = $('q').value.trim();
+
+    if (!query) {
+      hideMessage('search-message');
+      renderProducts(products);
+      return;
+    }
+
+    try {
+      const data = await api(
+        'GET',
+        '/api/search?q=' + encodeURIComponent(query)
+      );
+
+      const results = getArray(data);
+      renderProducts(results);
+
+      if (!results.length) {
+        showMessage(
+          'search-message',
+          'No matching products were found.',
+          'info'
+        );
+      } else {
+        hideMessage('search-message');
+      }
+    } catch (error) {
+      showMessage(
+        'search-message',
+        'Search failed: ' + error.message,
+        'error'
+      );
+    }
+  }
+
+  $('q').addEventListener('keydown', event => {
+    if (event.key === 'Enter') searchProducts();
+  });
+
+  async function ensureCart() {
+    if (cartId) return cartId;
+
+    const customerId = Number($('cust').value);
+
+    if (!Number.isInteger(customerId) || customerId < 1) {
+      throw new Error('Enter a valid customer ID.');
+    }
+
+    const data = await api('POST', '/api/carts', {
+      customer_id: customerId,
+      status: 'open'
+    });
+
+    const newId = data?.cart_id ?? data?.id ?? data?.insertId;
+
+    if (!newId) {
+      throw new Error(
+        'The server did not return a cart ID. Check the POST /api/carts response in server.js.'
+      );
+    }
+
+    cartId = String(newId);
+    localStorage.setItem('ChompCartId', cartId);
+
+    return cartId;
+  }
+
+  async function addToCart(id) {
+    try {
+      const idOfCart = await ensureCart();
+
+      await api(
+        'POST',
+        `/api/carts/${encodeURIComponent(idOfCart)}/add`,
+        {
+          product_id: id,
+          quantity: 1
+        }
+      );
+
+      showMessage(
+        'global-message',
+        'Product added to your cart!',
+        'success'
+      );
+
+      await showCart();
+    } catch (error) {
+      showMessage(
+        'global-message',
+        'Could not add product: ' + error.message,
+        'error'
+      );
+    }
+  }
+
+  async function showCart() {
+    if (!cartId) {
+      currentCart = null;
+      $('cart-items').innerHTML =
+        '<div class="empty">Your cart is empty. Add a product to begin.</div>';
+      $('cart-total').textContent = money(0);
+      return;
+    }
+
+    try {
+      const data = await api(
+        'GET',
+        `/api/carts/${encodeURIComponent(cartId)}/details`
+      );
+
+      currentCart = data;
+
+      const items = Array.isArray(data)
+        ? data
+        : data.items || data.cart_items || [];
+
+      const total = Number(
+        data.total ?? data.total_amount ??
+        items.reduce((sum, item) => {
+          return sum + Number(item.quantity || 0) *
+            Number(item.unit_price ?? item.price ?? 0);
+        }, 0)
+      );
+
+      $('cart-total').textContent = money(total);
+
+      if (!items.length) {
+        $('cart-items').innerHTML =
+          '<div class="empty">Your cart is empty.</div>';
+        return;
+      }
+
+      $('cart-items').innerHTML = items.map(item => {
+        const id = item.cart_item_id ?? item.id;
+        const name = item.name ?? item.product_name ?? 'Product';
+        const price = Number(item.unit_price ?? item.price ?? 0);
+        const quantity = Number(item.quantity || 0);
+
+        return `
+          <div class="cart-item">
+            <div>
+              <h4>${escapeHTML(name)}</h4>
+              <div class="muted">
+                ${quantity} × ${money(price)}
+              </div>
+            </div>
+            <button class="btn danger small"
+                    onclick="removeCartItem(${Number(id)})">
+              Remove
+            </button>
+          </div>
+        `;
+      }).join('');
+    } catch (error) {
+      $('cart-items').innerHTML =
+        '<div class="empty">Could not load cart details.</div>';
+
+      showMessage(
+        'checkout-message',
+        error.message,
+        'error'
+      );
+    }
+  }
+
+  async function removeCartItem(id) {
+    try {
+      await api(
+        'DELETE',
+        `/api/cart-items/${encodeURIComponent(id)}`
+      );
+
+      await showCart();
+    } catch (error) {
+      showMessage(
+        'checkout-message',
+        'Could not remove item: ' + error.message,
+        'error'
+      );
+    }
+  }
+
+  async function startNewCart() {
+    cartId = null;
+    currentCart = null;
+    localStorage.removeItem('chompCartId');
+    hideMessage('checkout-message');
+
+    try {
+      await ensureCart();
+      await showCart();
+
+      showMessage(
+        'checkout-message',
+        'A new cart has been created.',
+        'success'
+      );
+    } catch (error) {
+      showMessage(
+        'checkout-message',
+        error.message,
+        'error'
+      );
+    }
+  }
+
+  async function checkout() {
+    if (!cartId) {
+      showMessage(
+        'checkout-message',
+        'Add a product to your cart first.',
+        'error'
+      );
+      return;
+    }
+
+    const button = $('checkout-btn');
+    button.disabled = true;
+    button.textContent = 'Processing...';
+
+    try {
+      const result = await api(
+        'POST',
+        `/api/carts/${encodeURIComponent(cartId)}/checkout`
+      );
+
+      const orderId = result?.order_id ?? result?.order?.order_id;
+      const shipment = result?.shipment;
+
+      if (orderId) {
+        $('track-order-id').value = orderId;
+      }
+
+      showMessage(
+        'checkout-message',
+        `Checkout completed. Order ID: ${orderId ?? 'See server response'}.` +
+        (shipment?.shipment_id
+          ? ` Shipment ID: ${shipment.shipment_id}.`
+          : ''),
+        'success'
+      );
+
+      cartId = null;
+      currentCart = null;
+      localStorage.removeItem('chompCartId');
+
+      await loadProducts();
+      await showCart();
+
+      if (orderId) {
+        await trackOrder();
+      }
+    } catch (error) {
+      showMessage(
+        'checkout-message',
+        'Checkout failed: ' + error.message,
+        'error'
+      );
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Proceed to Checkout';
+    }
+  }
+
+  async function loadRecommendations() {
+    const customerId = Number($('cust').value);
+
+    try {
+      let data;
+
+      if (Number.isInteger(customerId) && customerId > 0) {
+        data = await api(
+          'GET',
+          `/api/recommendations/customer/${customerId}`
+        );
+      } else {
+        data = await api(
+          'GET',
+          '/api/recommendations/product/1'
+        );
+      }
+
+      let list = getArray(data);
+
+      // Some recommendation APIs return product IDs rather than full products.
+      list = list.map(item => {
+        if (typeof item === 'number' || typeof item === 'string') {
+          return products.find(
+            product => Number(productId(product)) === Number(item)
+          );
+        }
+
+        if (item.product && typeof item.product === 'object') {
+          return item.product;
+        }
+
+        return item;
+      }).filter(Boolean);
+
+      if (!list.length) {
+        $('recommendation-grid').innerHTML =
+          '<div class="empty">No recommendations available yet.</div>';
+        return;
+      }
+
+      renderProducts(list, 'recommendation-grid');
+    } catch (error) {
+      $('recommendation-grid').innerHTML =
+        '<div class="empty">Recommendations are unavailable: ' +
+        escapeHTML(error.message) + '</div>';
+    }
+  }
+
+  async function trackOrder() {
+    const orderId = Number($('track-order-id').value);
+
+    if (!Number.isInteger(orderId) || orderId < 1) {
+      showMessage(
+        'shipping-details',
+        'Please enter a valid order ID.',
+        'error'
+      );
+      return;
+    }
+
+    $('shipping-details').innerHTML =
+      '<div class="notice info">Looking up shipment...</div>';
+
+    try {
+      const data = await api(
+        'GET',
+        `/api/orders/${orderId}/shipment`
+      );
+
+      const shipment = data?.shipment ?? data;
+
+      if (!shipment || !shipment.shipment_id) {
+        $('shipping-details').innerHTML =
+          '<div class="notice info">No shipment information was returned for this order.</div>';
+        return;
+      }
+
+      $('shipping-details').innerHTML = `
+        <div class="notice info">
+          <strong>Order ID:</strong> ${escapeHTML(orderId)}<br>
+          <strong>Shipment ID:</strong>
+          ${escapeHTML(shipment.shipment_id)}<br>
+          <strong>Status:</strong>
+          ${escapeHTML(shipment.status || 'Unknown')}<br>
+          <strong>Carrier:</strong>
+          ${escapeHTML(shipment.carrier || 'Not assigned')}<br>
+          <strong>Tracking Number:</strong>
+          ${escapeHTML(shipment.tracking_no || 'Not assigned')}
+        </div>
+      `;
+    } catch (error) {
+      $('shipping-details').innerHTML =
+        '<div class="notice error">Could not find shipment: ' +
+        escapeHTML(error.message) + '</div>';
+    }
+  }
+
+  $('vendor-form').addEventListener('submit', async event => {
+    event.preventDefault();
+
+    const name = $('vendor-name').value.trim();
+    const email = $('vendor-email').value.trim();
+
+    if (!name || !email) {
+      showMessage(
+        'vendor-message',
+        'Please complete all vendor fields.',
+        'error'
+      );
+      return;
+    }
+
+    try {
+      await api('POST', '/api/vendors', { name, email });
+
+      showMessage(
+        'vendor-message',
+        'Vendor added successfully.',
+        'success'
+      );
+
+      $('vendor-form').reset();
+      await loadVendors();
+    } catch (error) {
+      showMessage(
+        'vendor-message',
+        'Could not add vendor: ' + error.message,
+        'error'
+      );
+    }
+  });
+
+  async function testProductsAPI() {
+    try {
+      const response = await fetch('/api/products');
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Products API is working:', data);
+    } catch (error) {
+      console.error('Products API error:', error);
+    }
+  }
+
+  async function loadAll() {
+    await Promise.all([
+      loadProducts(),
+      loadVendors()
+    ]);
+
+    await showCart();
+    await loadRecommendations();
+  }
+
+  // Start the page.
+  loadAll();
+  testProductsAPI();
+</script>
+
+</body>
+</html>

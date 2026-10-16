@@ -1,0 +1,14 @@
+# Keep the Docker image small and free of secrets
+**/node_modules
+**/.env
+**/.env.*
+!**/.env.example
+backend/logs
+backend/backups
+backend/uploads
+archive
+docs
+.git
+.github
+*.log
+desktop.ini

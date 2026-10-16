@@ -1,0 +1,20 @@
+# ---- Secrets: NEVER push these ----
+.env
+.env.*
+!.env.example
+
+# ---- Installed packages (run "npm install" to get them back) ----
+node_modules/
+
+# ---- Created while the server runs ----
+backend/logs/
+backend/backups/
+backend/uploads/
+*.log
+
+# ---- Editor / OS clutter ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
