@@ -208,10 +208,46 @@ function issueToken(u) {
   };
 }
 
+// ===================== CAPTCHA (self-hosted math challenge, no external service) =====================
+// A stateless signed token carries the answer; a consumed-token set blocks reuse.
+const captchaUsed = new Map(); // jti -> expiry ms
+setInterval(() => { const now = Date.now(); for (const [k, exp] of captchaUsed) if (exp < now) captchaUsed.delete(k); }, 60 * 1000).unref?.();
+
+const CAPTCHA_MINUTES = 5;
+
+// GET a fresh challenge: returns the question text and a signed token that encodes the answer.
+app.get('/api/captcha', wrap(async (req, res) => {
+  const a = crypto.randomInt(1, 10);
+  const b = crypto.randomInt(1, 10);
+  const ops = [['+', a + b], ['x', a * b], ['-', a + b >= b ? a : b]]; // keep results non-negative
+  const [sym, answer] = ops[crypto.randomInt(0, ops.length)];
+  const x = sym === '-' ? Math.max(a, b) : a;
+  const y = sym === '-' ? Math.min(a, b) : b;
+  const realAnswer = sym === '+' ? x + y : sym === 'x' ? x * y : x - y;
+  const jti = crypto.randomUUID();
+  const token = jwt.sign({ a: realAnswer, jti, scope: 'captcha' }, JWT_SECRET, { expiresIn: `${CAPTCHA_MINUTES}m` });
+  res.json({ question: `${x} ${sym} ${y}`, token });
+}));
+
+// Returns true only for a valid, unexpired, unused token whose answer matches. Missing/invalid/expired/reused -> false.
+function verifyCaptcha(req) {
+  const token = req.body?.captcha_token;
+  const given = Number(req.body?.captcha_answer);
+  if (!token || !Number.isFinite(given)) return false;
+  let p;
+  try { p = jwt.verify(token, JWT_SECRET); } catch { return false; }
+  if (p.scope !== 'captcha' || typeof p.a !== 'number' || !p.jti) return false;
+  if (captchaUsed.has(p.jti)) return false;           // reused token
+  if (given !== p.a) return false;                    // wrong answer
+  captchaUsed.set(p.jti, (p.exp || 0) * 1000 || Date.now() + CAPTCHA_MINUTES * 60 * 1000);
+  return true;
+}
+
 // Log in with email + password. 5 wrong passwords lock the account for 15 minutes.
 app.post('/api/auth/login', loginLimiter, wrap(async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
+  if (!verifyCaptcha(req)) return res.status(400).json({ error: 'Please answer the CAPTCHA correctly.', code: 'CAPTCHA_FAILED' });
   if (!email || !password) return res.status(400).json({ error: 'Enter your email and password.' });
 
   const [rows] = await sys(
@@ -246,6 +282,48 @@ app.post('/api/auth/login', loginLimiter, wrap(async (req, res) => {
   res.json(result);
 }));
 
+// ---- Registration input validation (reject blank / junk / wrong-format values) ----
+const NAME_RE  = /^[A-Za-zÀ-ɏñÑ][A-Za-zÀ-ɏñÑ .'-]*$/; // letters, spaces, . ' -
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
+
+// true if the text is one character repeated (e.g. "aaaa", "1111") or has no letters
+const isJunkText = (s) => !/[A-Za-z]/.test(s) || /^(.)\1*$/.test(s.replace(/\s/g, ''));
+
+// Keep only digits; a leading +63 becomes 0. Returns '' if it is not a PH mobile number.
+function normalisePHMobile(raw) {
+  let d = String(raw || '').replace(/[\s()-]/g, '');
+  if (d.startsWith('+63')) d = '0' + d.slice(3);
+  else if (d.startsWith('63') && d.length === 12) d = '0' + d.slice(2);
+  d = d.replace(/\D/g, '');
+  return /^09\d{9}$/.test(d) ? d : '';
+}
+
+function validateRegistration(data, password) {
+  const missing = ['first_name', 'last_name', 'email', 'phone', 'street', 'barangay', 'city'].filter((k) => !data[k]);
+  if (missing.length) return 'Please fill in: ' + missing.join(', ').replace(/_/g, ' ') + '.';
+
+  for (const [field, label] of [['first_name', 'First name'], ['last_name', 'Last name']]) {
+    const v = data[field];
+    if (v.length < 2 || !NAME_RE.test(v) || /^(.)\1*$/.test(v.replace(/\s/g, '')))
+      return label + ' must be a real name (letters only, at least 2 characters).';
+  }
+
+  if (!EMAIL_RE.test(data.email) || data.email.length > 100 || data.email.includes('..'))
+    return 'Enter a valid email address, for example juan@gmail.com.';
+
+  if (!normalisePHMobile(data.phone))
+    return 'Enter a valid Philippine mobile number, for example 0917 123 4567.';
+
+  if (data.street.length < 5 || isJunkText(data.street)) return 'Enter your complete street / house address.';
+  if (data.barangay.length < 2 || isJunkText(data.barangay)) return 'Enter a valid barangay.';
+  if (data.city.length < 2 || isJunkText(data.city)) return 'Enter a valid city or municipality.';
+  if (data.postal_code && !/^\d{4}$/.test(data.postal_code)) return 'Postal code must be 4 digits.';
+
+  if (password.length < 8) return 'Password must be at least 8 characters.';
+  if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) return 'Password must include both a letter and a number.';
+  return null;
+}
+
 // Create a customer account with a delivery address
 app.post('/api/auth/register', registerLimiter, wrap(async (req, res) => {
   const b = req.body || {};
@@ -258,10 +336,13 @@ app.post('/api/auth/register', registerLimiter, wrap(async (req, res) => {
   };
   const password = String(b.password || '');
 
-  const missing = ['first_name', 'last_name', 'email', 'street', 'barangay', 'city'].filter((k) => !data[k]);
-  if (missing.length) return res.status(400).json({ error: 'Please fill in: ' + missing.join(', ').replace(/_/g, ' ') });
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) return res.status(400).json({ error: 'Enter a valid email.' });
-  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+  if (!verifyCaptcha(req)) return res.status(400).json({ error: 'Please answer the CAPTCHA correctly.', code: 'CAPTCHA_FAILED' });
+
+  const vError = validateRegistration(data, password);
+  if (vError) return res.status(400).json({ error: vError });
+
+  // Normalise the phone to 11 digits (09XXXXXXXXX) before saving
+  data.phone = normalisePHMobile(data.phone);
 
   const hash = await bcrypt.hash(password, 10);
   const conn = await staffPool.getConnection();
