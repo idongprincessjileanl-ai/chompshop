@@ -789,6 +789,50 @@ app.get('/api/reports/:name', staffOnly, wrap(async (req, res) => {
   res.json(rows);
 }));
 
+// Dashboard overview: KPIs + top products by units delivered (staff/admin)
+app.get('/api/staff/dashboard', staffOnly, wrap(async (req, res) => {
+  const [statusRows] = await sys('SELECT status, COUNT(*) AS n FROM orders GROUP BY status');
+  const counts = {};
+  let total = 0;
+  statusRows.forEach((r) => { counts[r.status] = Number(r.n); total += Number(r.n); });
+  const delivered = counts.DELIVERED || 0;
+  const cancelled = counts.CANCELLED || 0;
+
+  const [[rev]] = await sys(
+    `SELECT COALESCE(SUM(oi.quantity * oi.unit_price), 0) AS delivered_revenue,
+            COALESCE(SUM(oi.quantity), 0)                 AS units_delivered
+       FROM order_items oi JOIN orders o ON o.order_id = oi.order_id
+      WHERE o.status = 'DELIVERED'`);
+  const [[prod]] = await sys('SELECT COUNT(*) AS n FROM products WHERE is_active = TRUE');
+  const [[low]]  = await sys('SELECT COUNT(*) AS n FROM vw_low_stock_products');
+
+  const [top] = await sys(
+    `SELECT p.product_id, p.product_name, p.sku, c.category_name,
+            SUM(oi.quantity)                 AS units_delivered,
+            SUM(oi.quantity * oi.unit_price) AS revenue
+       FROM order_items oi
+       JOIN orders     o ON o.order_id    = oi.order_id
+       JOIN products   p ON p.product_id  = oi.product_id
+       JOIN categories c ON c.category_id = p.category_id
+      WHERE o.status = 'DELIVERED'
+      GROUP BY p.product_id, p.product_name, p.sku, c.category_name
+      ORDER BY units_delivered DESC
+      LIMIT 8`);
+
+  res.json({
+    orders_total: total,
+    delivered,
+    cancelled,
+    in_progress: total - delivered - cancelled,
+    delivered_revenue: Number(rev.delivered_revenue),
+    units_delivered: Number(rev.units_delivered),
+    products: Number(prod.n),
+    low_stock: Number(low.n),
+    counts,
+    top_products: top.map((r) => ({ ...r, units_delivered: Number(r.units_delivered), revenue: Number(r.revenue) }))
+  });
+}));
+
 // Forecast = weighted moving average of the last 8 weeks (recent weeks count more)
 app.post('/api/forecasts/generate', staffOnly, wrap(async (req, res) => {
   const productId = toId(req.body?.product_id);
