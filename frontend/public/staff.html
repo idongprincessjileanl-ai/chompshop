@@ -910,6 +910,11 @@ pre { max-height: 480px; }
 .kpi.bad b { color: var(--red); }
 .demo-accounts { margin-top: 16px; text-align: left; font-size: 13px; color: var(--muted); }
 .demo-accounts code { color: var(--navy); }
+
+.captcha-q { display: inline-block; padding: 2px 10px; border-radius: 8px; background: var(--brand); color: var(--gold-light); font: 700 15px var(--mono); letter-spacing: 1px; user-select: none; }
+.captcha-refresh { margin: 0 0 0 6px; padding: 0; width: 26px; height: 26px; line-height: 1; border: 1px solid var(--line); border-radius: 50%; background: var(--card); color: var(--navy); box-shadow: none; font-size: 15px; cursor: pointer; vertical-align: middle; }
+.captcha-refresh:hover { background: var(--gold); color: var(--navy-deep); border-color: var(--gold); }
+.login input#stCaptchaInput { text-align: center; font-size: 16px; letter-spacing: normal; }
 </style>
 <script>(function(){try{var th=localStorage.getItem("chomp-theme");if(!th)th=(window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";document.documentElement.setAttribute("data-theme",th);}catch(e){}})();</script>
 </head>
@@ -947,6 +952,8 @@ pre { max-height: 480px; }
         <input id="email" type="email" autocomplete="username" required>
         <label for="password">Password</label>
         <input id="password" type="password" autocomplete="current-password" required>
+        <label for="stCaptchaInput">Security check — solve: <span id="stCaptchaQ" class="captcha-q">…</span> <button type="button" class="captcha-refresh" onclick="loadStaffCaptcha()" title="New question" aria-label="New question">↻</button></label>
+        <input id="stCaptchaInput" type="text" inputmode="numeric" autocomplete="off" placeholder="Your answer" required>
         <button type="submit">Log In</button>
     </form>
     <p id="loginMessage" class="status"></p>
@@ -1257,7 +1264,7 @@ async function login(event) {
     event.preventDefault();
     message("loginMessage", "Logging in...");
     try {
-        const result = await api("POST", "/api/auth/login", { email: $("email").value.trim(), password: $("password").value });
+        const result = await api("POST", "/api/auth/login", { email: $("email").value.trim(), password: $("password").value, captcha_token: staffCaptchaToken, captcha_answer: $("stCaptchaInput").value.trim() });
         if (result.user.role === "Customer") {
             message("loginMessage", "This is a customer account. Please log in on the store page.", true);
             return;
@@ -1267,6 +1274,22 @@ async function login(event) {
         showStaff();
     } catch (error) {
         message("loginMessage", error.message, true);
+        loadStaffCaptcha();
+    }
+}
+
+let staffCaptchaToken = null;
+async function loadStaffCaptcha() {
+    const q = $("stCaptchaQ"), inp = $("stCaptchaInput");
+    if (inp) inp.value = "";
+    if (q) q.textContent = "…";
+    try {
+        const c = await api("GET", "/api/captcha");
+        staffCaptchaToken = c.token;
+        if (q) q.textContent = c.question + " =";
+    } catch {
+        staffCaptchaToken = null;
+        if (q) q.textContent = "(tap ↻)";
     }
 }
 
@@ -1276,6 +1299,7 @@ function logout() {
     $("logoutLink").classList.add("hidden");
     $("whoAmI").classList.add("hidden");
     $("loginBox").classList.remove("hidden");
+    loadStaffCaptcha();
 }
 
 async function showStaff() {
@@ -1970,6 +1994,8 @@ if (auth) showStaff();
 function applyThemeIcon(){var b=document.getElementById("themeBtn");if(!b)return;var d=document.documentElement.getAttribute("data-theme")==="dark";b.textContent=d?"☀️":"🌙";b.setAttribute("aria-label",d?"Switch to light mode":"Switch to dark mode");}
 function toggleTheme(){var c=document.documentElement.getAttribute("data-theme")==="dark"?"dark":"light";var n=c==="dark"?"light":"dark";document.documentElement.setAttribute("data-theme",n);try{localStorage.setItem("chomp-theme",n);}catch(e){}applyThemeIcon();}
 applyThemeIcon();
+
+loadStaffCaptcha();
 </script>
 
 </body>
