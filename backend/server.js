@@ -417,6 +417,21 @@ app.get('/api/products/:id', wrap(async (req, res) => {
   res.json({ ...rows[0], specifications: specs });
 }));
 
+// Public list of a product's customer reviews (name shown as "First L.")
+app.get('/api/products/:id/reviews', wrap(async (req, res) => {
+  const id = toId(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Invalid product ID' });
+  const [rows] = await sys(
+    `SELECT pr.rating, pr.comment, pr.created_at, u.first_name,
+            CONCAT(UPPER(LEFT(u.last_name, 1)), '.') AS last_initial
+       FROM product_reviews pr
+       JOIN users u ON u.user_id = pr.user_id
+      WHERE pr.product_id = ?
+      ORDER BY pr.created_at DESC
+      LIMIT 50`, [id]);
+  res.json(rows);
+}));
+
 app.get('/api/search', wrap(async (req, res) => {
   const term = `%${String(req.query.q || '').trim().slice(0, 100)}%`;
   const [rows] = await q(req,

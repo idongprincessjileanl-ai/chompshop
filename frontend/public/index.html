@@ -1451,6 +1451,21 @@ footer img { background: none; padding: 0; height: 64px; filter: drop-shadow(0 6
 }
 @keyframes bgTwinkle { 0%, 100% { opacity: 0.12; transform: scale(0.65); } 50% { opacity: 1; transform: scale(1.2); } }
 @media (prefers-reduced-motion: reduce) { #bgfx .bg-grid, #bgfx .bg-lines, #bgfx .bg-glow, #bgfx .node { animation: none; } }
+
+/* ===== Product reviews ===== */
+.pv-reviews { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.pv-rv-h { margin: 0 0 12px; font: 800 15px var(--display); color: var(--navy); text-transform: uppercase; letter-spacing: 0.03em; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.pv-rv-sum { font: 700 13px var(--sans); color: var(--gold-dark); letter-spacing: 0; text-transform: none; }
+:root[data-theme="dark"] .pv-rv-sum { color: var(--gold-light); }
+.pv-rv-empty { color: var(--muted); font-size: 14px; margin: 0; }
+.pv-rv { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.pv-rv:last-child { border-bottom: 0; }
+.pv-rv-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pv-rv-stars { color: var(--gold-dark); letter-spacing: 1px; font-size: 14px; }
+:root[data-theme="dark"] .pv-rv-stars { color: var(--gold-light); }
+.pv-rv-name { font-weight: 700; color: var(--navy); font-size: 14px; }
+.pv-rv-date { color: var(--muted); font-size: 12px; margin-left: auto; }
+.pv-rv-comment { margin: 6px 0 0; color: var(--text); font-size: 14px; line-height: 1.5; }
 </style>
 <script>
 (function () {
@@ -2111,6 +2126,7 @@ footer img { background: none; padding: 0; height: 64px; filter: drop-shadow(0 6
             <div class="stock" id="pvStock"></div>
             <p class="pv-desc" id="pvDesc"></p>
             <div id="pvSpecs" class="pv-specs"></div>
+            <div id="pvReviews" class="pv-reviews"></div>
             <div class="pv-supplier" id="pvSupplier"></div>
             <button id="pvAdd" class="pv-add">Add to Cart</button>
         </div>
@@ -3417,6 +3433,44 @@ function openProductView(product) {
             $("pvSpecs").append(b, v);
         });
     }).catch(() => {});
+
+    // customer reviews (who rated and what they said)
+    loadProductReviews(product);
+}
+
+function loadProductReviews(product) {
+    const box = $("pvReviews");
+    box.replaceChildren();
+    box.appendChild(el("h4", "pv-rv-h", "Customer Reviews"));
+    const loading = el("p", "pv-rv-empty", "Loading reviews…");
+    box.appendChild(loading);
+    api("GET", "/api/products/" + product.product_id + "/reviews").then(list => {
+        box.replaceChildren();
+        const count = Number(product.review_count) || list.length;
+        const avg = Number(product.avg_rating) || 0;
+        const head = el("h4", "pv-rv-h", "Customer Reviews");
+        if (count > 0) head.appendChild(el("span", "pv-rv-sum", "★ " + avg.toFixed(1) + " · " + count + " review" + (count === 1 ? "" : "s")));
+        box.appendChild(head);
+        if (!list.length) {
+            box.appendChild(el("p", "pv-rv-empty", "No reviews yet. Reviews appear after a customer's order is delivered."));
+            return;
+        }
+        list.forEach(r => {
+            const card = el("div", "pv-rv");
+            const top = el("div", "pv-rv-top");
+            const rating = Math.max(0, Math.min(5, Number(r.rating) || 0));
+            top.appendChild(el("span", "pv-rv-stars", "★★★★★".slice(0, rating) + "☆☆☆☆☆".slice(0, 5 - rating)));
+            top.appendChild(el("span", "pv-rv-name", (r.first_name || "Customer") + (r.last_initial ? " " + r.last_initial : "")));
+            if (r.created_at) top.appendChild(el("span", "pv-rv-date", formatDate(r.created_at)));
+            card.appendChild(top);
+            if (r.comment) card.appendChild(el("p", "pv-rv-comment", r.comment));
+            box.appendChild(card);
+        });
+    }).catch(() => {
+        box.replaceChildren();
+        box.appendChild(el("h4", "pv-rv-h", "Customer Reviews"));
+        box.appendChild(el("p", "pv-rv-empty", "Could not load reviews right now."));
+    });
 }
 
 function closeProductView() {
