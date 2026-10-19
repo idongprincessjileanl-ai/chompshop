@@ -480,6 +480,38 @@ app.get('/api/me/recommendations', requireLogin, wrap(async (req, res) => {
 // ===================== CUSTOMER ORDERS (RLS: only their own) =====================
 
 // Checkout: the logged-in customer is the buyer (never taken from the request body)
+// ---------- Order confirmation email (Resend HTTP API; never blocks checkout) ----------
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const MAIL_FROM = process.env.MAIL_FROM || 'Chomp Shop <onboarding@resend.dev>';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || '';
+
+async function sendOrderEmail(order, user) {
+  if (!RESEND_API_KEY) return;
+  const to = [user.email].filter(Boolean);
+  if (ADMIN_EMAIL && !to.includes(ADMIN_EMAIL)) to.push(ADMIN_EMAIL);
+  if (!to.length) return;
+  const total = Number(order.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:auto;color:#13254a">
+    <h2 style="margin:0 0 8px">Chomp Shop — Order Confirmed 🎉</h2>
+    <p style="margin:0 0 12px">Hi ${user.name || 'customer'}, salamat sa iyong order!</p>
+    <table style="border-collapse:collapse;font-size:14px">
+      <tr><td style="padding:3px 10px 3px 0;color:#6c7590">Order number</td><td><b>#${order.order_id}</b></td></tr>
+      <tr><td style="padding:3px 10px 3px 0;color:#6c7590">Total</td><td><b>₱${total}</b></td></tr>
+      <tr><td style="padding:3px 10px 3px 0;color:#6c7590">Status</td><td>Pending — awaiting confirmation</td></tr>
+    </table>
+    <p style="margin:12px 0 0">Bibigyan ka namin ng update habang pinoproseso ang order mo.</p>
+    <p style="color:#6c7590;font-size:12px;margin-top:18px">Chomp Shop · Online Store</p></div>`;
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + RESEND_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: MAIL_FROM, to, subject: `Chomp Shop — Order #${order.order_id} confirmed`, html }),
+    });
+    if (!r.ok) log('warn', 'order email failed', { status: r.status, body: (await r.text()).slice(0, 200) });
+    else log('info', 'order email sent', { order: order.order_id, to: to.length });
+  } catch (err) { log('warn', 'order email error', { order: order.order_id, err: err.message }); }
+}
+
 app.post('/api/checkout', checkoutLimiter, requireRole('Customer'), wrap(async (req, res) => {
   const body = req.body || {};
   const method = String(body.payment_method || 'GCASH').toUpperCase();
@@ -501,6 +533,8 @@ app.post('/api/checkout', checkoutLimiter, requireRole('Customer'), wrap(async (
   audit(req, 'checkout', 'order', order.order_id, { total: order.total_amount, method, items: items.length });
   // AI fraud check (never blocks the checkout if it fails)
   try { await scoreOrder(order.order_id); } catch (err) { log('warn', 'AI fraud check failed', { order: order.order_id, err: err.message }); }
+  // Send order confirmation email (fire-and-forget; never blocks or fails the checkout)
+  sendOrderEmail(order, req.user).catch(() => {});
   res.status(201).json(order);
 }));
 
@@ -666,7 +700,7 @@ app.get('/api/staff/orders', requireRole(...STAFF_ROLES, 'Rider'), wrap(async (r
   if (isRider && !['SHIPPED', 'DELIVERED'].includes(status)) return res.json({ status, counts: {}, orders: [] });
   const driverId = isRider ? req.user.driverId || -1 : toId(req.query.driver_id);
 
-  const order = ['DELIVERED', 'CANCELLED'].includes(status) ? 'DESC' : 'ASC';
+  const order = 'DESC'; // newest orders first in every tab, so new customer orders show at the top
   const [orders] = await q(req,
     `SELECT o.order_id, o.order_date, o.status, o.user_id,
             CONCAT(u.first_name, ' ', u.last_name) AS customer, u.phone,
