@@ -1052,7 +1052,9 @@ main h2 { font-size: 32px; }
 /* Scroll reveal: cards fade + rise into view as you scroll */
 .product-card.reveal { opacity: 0; transform: translateY(20px); transition: opacity .55s cubic-bezier(.2,.8,.3,1), transform .55s cubic-bezier(.2,.8,.3,1); }
 .product-card.reveal.in { opacity: 1; transform: none; }
-@media (prefers-reduced-motion: reduce) { .product-card.reveal { opacity: 1 !important; transform: none !important; transition: none !important; } }
+.sr { opacity: 0; transform: translateY(18px); transition: opacity .6s cubic-bezier(.2,.8,.3,1), transform .6s cubic-bezier(.2,.8,.3,1); }
+.sr.in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .product-card.reveal, .sr { opacity: 1 !important; transform: none !important; transition: none !important; } }
 .product-card::before {
     content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1.5px; pointer-events: none; opacity: 0; transition: opacity 0.3s;
     background: linear-gradient(135deg, #f0d47e, #c9a23f 40%, transparent 60%, #2e5689);
@@ -2533,6 +2535,22 @@ const revealObserver = ("IntersectionObserver" in window)
         entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add("in"); obs.unobserve(e.target); } });
       }, { rootMargin: "0px 0px -8% 0px", threshold: 0.08 })
     : { observe(el) { el.classList.add("in"); }, unobserve() {} };
+
+// Site-wide scroll reveal for content blocks (receipt, orders, footer, company pages, reviews)
+const SR_SELECTOR = ".order-row, .qr-receipt, .company-hero, .company-split, .company-h, .pv-reviews, footer .footer-col, footer .footer-brand";
+function revealScan() {
+    const vh = window.innerHeight || document.documentElement.clientHeight;
+    document.querySelectorAll(SR_SELECTOR).forEach(el => {
+        if (el.dataset.sr) return;
+        el.dataset.sr = "1";
+        if (el.getBoundingClientRect().top < vh * 0.92) { el.classList.add("sr", "in"); }
+        else { el.classList.add("sr"); revealObserver.observe(el); }
+    });
+}
+let srTick = false;
+window.addEventListener("load", revealScan);
+window.addEventListener("hashchange", () => setTimeout(revealScan, 80));
+window.addEventListener("scroll", () => { if (srTick) return; srTick = true; requestAnimationFrame(() => { revealScan(); srTick = false; }); }, { passive: true });
 
 function renderProducts(products, containerId) {
     const grid = $(containerId);
