@@ -2094,7 +2094,7 @@ footer img { background: none; padding: 0; height: 64px; filter: drop-shadow(0 6
             <label for="regEmail">Email</label>
             <input id="regEmail" type="email" autocomplete="email" required>
             <label for="regPassword">Password (letters + numbers, at least 8)</label>
-            <input id="regPassword" type="password" autocomplete="new-password" minlength="8" pattern="(?=.*[A-Za-z])(?=.*\d).{8,}" title="At least 8 characters, with a letter and a number" required>
+            <input id="regPassword" type="password" autocomplete="new-password" minlength="8" pattern="(?=.*[A-Za-z])(?=.*\d)\S{8,}" title="At least 8 characters, with a letter and a number, no spaces" oninput="this.value=this.value.replace(/\s/g,'')" required>
             <label for="regPhone">Mobile Number</label>
             <input id="regPhone" type="tel" inputmode="tel" autocomplete="tel" required pattern="(\+?63|0)9\d{9}" placeholder="0917 123 4567" title="Philippine mobile number, e.g. 09171234567">
             <label for="regStreet">Street / Blk / Lot</label>
@@ -2454,7 +2454,7 @@ async function doRegister(event) {
     try {
         const result = await api("POST", "/api/auth/register", {
             first_name: $("regFirst").value, last_name: $("regLast").value,
-            email: $("regEmail").value, password: $("regPassword").value, phone: $("regPhone").value,
+            email: $("regEmail").value, password: $("regPassword").value.replace(/\s/g, ""), phone: $("regPhone").value,
             street: $("regStreet").value, barangay: $("regBarangay").value, city: $("regCity").value,
             captcha_token: captchaTokens.register,
             captcha_answer: $("regCaptchaInput").value.trim()
@@ -2542,6 +2542,8 @@ function renderProducts(products, containerId) {
         image.className = "product-image";
         if (product.image_url) {
             const img = document.createElement("img");
+            img.loading = "lazy";
+            img.decoding = "async";
             img.src = product.image_url;
             img.alt = product.name;
             img.onerror = () => { img.remove(); image.textContent = "No product image"; };
