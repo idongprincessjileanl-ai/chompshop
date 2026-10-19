@@ -912,7 +912,7 @@ footer a:hover { text-decoration: underline; }
 pre { max-height: 480px; }
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 18px; }
 .kpi { padding: 16px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
-.kpi b { display: block; font: 800 24px var(--display); color: var(--navy); }
+.kpi b { display: block; font: 800 clamp(16px, 2.2vw, 24px) var(--display); color: var(--navy); overflow-wrap: anywhere; }
 .kpi small { color: var(--muted); }
 .kpi.bad b { color: var(--red); }
 .demo-accounts { margin-top: 16px; text-align: left; font-size: 13px; color: var(--muted); }
@@ -925,11 +925,11 @@ pre { max-height: 480px; }
 
 /* Dashboard */
 .dash-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin: 14px 0 8px; }
-.kpi { padding: 16px; border-radius: 14px; background: var(--bg); border: 1px solid var(--line); border-left: 4px solid var(--navy); }
+.kpi { padding: 16px; border-radius: 14px; background: var(--bg); border: 1px solid var(--line); border-left: 4px solid var(--navy); min-width: 0; overflow: hidden; }
 .kpi-green { border-left-color: var(--green); }
 .kpi-gold { border-left-color: var(--gold); }
 .kpi-red { border-left-color: var(--red); }
-.kpi-val { font: 800 24px var(--display); color: var(--navy); line-height: 1.1; }
+.kpi-val { font: 800 clamp(16px, 2.2vw, 24px) var(--display); color: var(--navy); line-height: 1.15; overflow-wrap: anywhere; }
 .kpi-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 5px; }
 .dash-h { margin: 24px 0 12px; font: 800 15px var(--display); color: var(--navy); text-transform: uppercase; letter-spacing: 0.04em; }
 .dash-top { display: grid; gap: 10px; }
