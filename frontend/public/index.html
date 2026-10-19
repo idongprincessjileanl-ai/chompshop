@@ -998,7 +998,7 @@ nav {
     -webkit-mask: linear-gradient(90deg, #000 0%, transparent 28%, transparent 72%, #000 100%); mask: linear-gradient(90deg, #000 0%, transparent 28%, transparent 72%, #000 100%);
     animation: circuitFlow 40s linear infinite;
 }
-.orb { position: absolute; border-radius: 50%; filter: blur(40px); opacity: 0.5; }
+.orb { position: absolute; border-radius: 50%; filter: blur(50px); opacity: 0.55; animation: orbFloat 12s ease-in-out infinite; }
 .orb-1 { width: 340px; height: 340px; left: -80px; top: 10%; background: #2e5689; }
 .orb-2 { width: 280px; height: 280px; right: -60px; top: 45%; background: rgba(201, 162, 63, 0.55); animation-delay: -4s; }
 .orb-3 { width: 200px; height: 200px; left: 45%; bottom: -120px; background: rgba(194, 58, 43, 0.35); animation-delay: -8s; }
@@ -1049,6 +1049,10 @@ main h2 { font-size: 32px; }
 /* Product cards */
 .grid { gap: 24px; }
 .product-card { border-radius: 18px; border: 1px solid rgba(19, 37, 74, 0.08); box-shadow: 0 6px 20px rgba(19, 37, 74, 0.07); position: relative; }
+/* Scroll reveal: cards fade + rise into view as you scroll */
+.product-card.reveal { opacity: 0; transform: translateY(20px); transition: opacity .55s cubic-bezier(.2,.8,.3,1), transform .55s cubic-bezier(.2,.8,.3,1); }
+.product-card.reveal.in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .product-card.reveal { opacity: 1 !important; transform: none !important; transition: none !important; } }
 .product-card::before {
     content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1.5px; pointer-events: none; opacity: 0; transition: opacity 0.3s;
     background: linear-gradient(135deg, #f0d47e, #c9a23f 40%, transparent 60%, #2e5689);
@@ -1439,9 +1443,9 @@ footer img { background: none; padding: 0; height: 64px; filter: drop-shadow(0 6
     animation: bgFlow 40s linear infinite;
 }
 @keyframes bgFlow { to { background-position: 540px 0; } }
-#bgfx .bg-glow { position: absolute; width: 560px; height: 560px; max-width: 90vw; max-height: 90vw; border-radius: 50%; filter: blur(55px); opacity: 0.5; }
-#bgfx .bg-glow-1 { background: radial-gradient(circle, var(--bgfx-glow-a), transparent 70%); top: -12%; left: -8%; }
-#bgfx .bg-glow-2 { background: radial-gradient(circle, var(--bgfx-glow-b), transparent 70%); bottom: -14%; right: -10%; }
+#bgfx .bg-glow { position: absolute; width: 560px; height: 560px; max-width: 90vw; max-height: 90vw; border-radius: 50%; filter: blur(90px); opacity: 0.6; }
+#bgfx .bg-glow-1 { background: radial-gradient(circle, var(--bgfx-glow-a), transparent 70%); top: -12%; left: -8%; animation: bgDrift1 22s ease-in-out infinite; }
+#bgfx .bg-glow-2 { background: radial-gradient(circle, var(--bgfx-glow-b), transparent 70%); bottom: -14%; right: -10%; animation: bgDrift2 26s ease-in-out infinite; }
 @keyframes bgDrift1 { 0%, 100% { transform: none; } 50% { transform: translate(60px, 44px) scale(1.12); } }
 @keyframes bgDrift2 { 0%, 100% { transform: none; } 50% { transform: translate(-52px, -34px) scale(1.1); } }
 #bgfx .node {
@@ -2523,6 +2527,13 @@ function renderTable(container, rows) {
 
 // ---------- Products ----------
 
+// Reveals product cards (fade + rise) as they scroll into view
+const revealObserver = ("IntersectionObserver" in window)
+    ? new IntersectionObserver((entries, obs) => {
+        entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add("in"); obs.unobserve(e.target); } });
+      }, { rootMargin: "0px 0px -8% 0px", threshold: 0.08 })
+    : { observe(el) { el.classList.add("in"); }, unobserve() {} };
+
 function renderProducts(products, containerId) {
     const grid = $(containerId);
     grid.replaceChildren();
@@ -2620,7 +2631,9 @@ function renderProducts(products, containerId) {
         button.addEventListener("click", () => addToCart(product, card, button));
         card.appendChild(button);
 
+        card.classList.add("reveal");
         grid.appendChild(card);
+        revealObserver.observe(card);
     });
 }
 
