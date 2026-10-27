@@ -231,14 +231,21 @@ const CAPTCHA_WORDS = [
   'pepper', 'planet', 'rocket', 'silver', 'summer', 'tomato', 'wonder', 'yellow'
 ];
 
+// Letter colours for light mode (dark inks) and dark mode (light inks) so the word always
+// reads clearly against the matching background and feels part of the page's theme.
 const CAPTCHA_COLORS = ['#1e2a4a', '#2b3a67', '#3a2d5c', '#1f4536', '#5c2b2b', '#2c2c54', '#334155'];
+const CAPTCHA_COLORS_DARK = ['#e8edf9', '#e8c868', '#7fd6a3', '#f29b8f', '#9ec5ff', '#c9b8ff', '#cbd5e1'];
 function rnd(min, max) { return min + Math.random() * (max - min); }
 
 // Build a distorted, slightly blurry SVG of the word. Letters are individually rotated, nudged and
 // colored; faint curved noise lines and dots sit on top; a gaussian blur + turbulence displacement
-// keep it machine-unfriendly while staying human-readable.
-function captchaSvg(word) {
+// keep it machine-unfriendly while staying human-readable. `dark` picks a dark background with
+// light inks so the captcha matches the page when the user is in dark mode.
+function captchaSvg(word, dark = false) {
   const W = 230, H = 80;
+  const palette = dark ? CAPTCHA_COLORS_DARK : CAPTCHA_COLORS;
+  const bg = dark ? '#141f33' : '#f4f5f8';
+  const dotColor = dark ? '#9aa7c4' : '#334155';
   const letters = word.toUpperCase().split('');
   const step = (W - 40) / letters.length;
   let glyphs = '';
@@ -247,25 +254,25 @@ function captchaSvg(word) {
     const y = H / 2 + rnd(-6, 6);
     const rot = rnd(-20, 20);
     const size = rnd(30, 40);
-    const color = CAPTCHA_COLORS[Math.floor(Math.random() * CAPTCHA_COLORS.length)];
+    const color = palette[Math.floor(Math.random() * palette.length)];
     glyphs += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="${size.toFixed(1)}" fill="${color}" transform="rotate(${rot.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})" dominant-baseline="middle" text-anchor="middle">${ch}</text>`;
   });
   let lines = '';
   for (let i = 0; i < 3; i++) {
     const y1 = rnd(10, H - 10), y2 = rnd(10, H - 10), cy = rnd(0, H);
-    const color = CAPTCHA_COLORS[Math.floor(Math.random() * CAPTCHA_COLORS.length)];
+    const color = palette[Math.floor(Math.random() * palette.length)];
     lines += `<path d="M0 ${y1.toFixed(1)} Q ${(W / 2).toFixed(1)} ${cy.toFixed(1)} ${W} ${y2.toFixed(1)}" stroke="${color}" stroke-width="${rnd(1, 2).toFixed(1)}" fill="none" opacity="0.4"/>`;
   }
   let dots = '';
   for (let i = 0; i < 40; i++) {
-    dots += `<circle cx="${rnd(0, W).toFixed(1)}" cy="${rnd(0, H).toFixed(1)}" r="${rnd(0.5, 1.6).toFixed(1)}" fill="#334155" opacity="0.35"/>`;
+    dots += `<circle cx="${rnd(0, W).toFixed(1)}" cy="${rnd(0, H).toFixed(1)}" r="${rnd(0.5, 1.6).toFixed(1)}" fill="${dotColor}" opacity="0.35"/>`;
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="CAPTCHA image">
 <defs>
   <filter id="d"><feTurbulence type="fractalNoise" baseFrequency="0.018 0.03" numOctaves="2" seed="${Math.floor(rnd(0, 9999))}" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="6" xChannelSelector="R" yChannelSelector="G"/></filter>
   <filter id="b"><feGaussianBlur stdDeviation="0.9"/></filter>
 </defs>
-<rect width="${W}" height="${H}" fill="#f4f5f8"/>
+<rect width="${W}" height="${H}" fill="${bg}"/>
 <g filter="url(#b)"><g filter="url(#d)">${glyphs}${lines}</g></g>
 ${dots}
 </svg>`;
@@ -283,10 +290,14 @@ app.get('/api/captcha', wrap(async (req, res) => {
 // Serve the distorted word as an image (never cached). The answer lives only in these pixels.
 app.get('/api/captcha/image/:jti', wrap(async (req, res) => {
   const ch = captchaChallenges.get(req.params.jti);
+  const dark = req.query.theme === 'dark';
   res.set('Cache-Control', 'no-store, max-age=0');
   res.type('image/svg+xml');
-  if (!ch || ch.exp < Date.now()) return res.status(404).send('<svg xmlns="http://www.w3.org/2000/svg" width="230" height="80"><rect width="230" height="80" fill="#f4f5f8"/><text x="115" y="46" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#64748b">expired — tap ↻</text></svg>');
-  res.send(captchaSvg(ch.word));
+  if (!ch || ch.exp < Date.now()) {
+    const bg = dark ? '#141f33' : '#f4f5f8';
+    return res.status(404).send(`<svg xmlns="http://www.w3.org/2000/svg" width="230" height="80"><rect width="230" height="80" fill="${bg}"/><text x="115" y="46" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#9aa7c4">expired — tap ↻</text></svg>`);
+  }
+  res.send(captchaSvg(ch.word, dark));
 }));
 
 // Returns true only for a valid, unexpired, unused token whose typed word matches. Case-insensitive.
@@ -575,6 +586,41 @@ async function sendOrderEmail(order, user) {
   } catch (err) { log('warn', 'order email error', { order: order.order_id, err: err.message }); }
 }
 
+// ===================== ORDER OTP (one-time code shown at checkout) =====================
+// A 6-digit code per customer, kept in memory with a short expiry. For this classroom demo the code
+// is returned so the page can show it on screen; it is also emailed when email is configured.
+const orderOtps = new Map(); // userId -> { code, exp, attempts }
+setInterval(() => { const now = Date.now(); for (const [k, v] of orderOtps) if (v.exp < now) orderOtps.delete(k); }, 60 * 1000).unref?.();
+const OTP_MINUTES = 10;
+function makeOtp() { return String(crypto.randomInt(0, 1000000)).padStart(6, '0'); }
+
+async function sendOtpEmail(code, user) {
+  if (!RESEND_API_KEY) return;
+  const to = [user.email].filter(Boolean);
+  if (!to.length) return;
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:420px;margin:auto;color:#13254a">
+    <h2 style="margin:0 0 8px">Chomp Shop — Order code</h2>
+    <p style="margin:0 0 12px">Hi ${user.name || 'customer'}, use this code to confirm your order:</p>
+    <p style="font-size:30px;font-weight:800;letter-spacing:8px;margin:0 0 10px">${code}</p>
+    <p style="color:#6c7590;font-size:12px">This code expires in ${OTP_MINUTES} minutes. Do not share it.</p></div>`;
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + RESEND_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: MAIL_FROM, to, subject: 'Chomp Shop — your order code', html }),
+    });
+    if (!r.ok) log('warn', 'otp email failed', { status: r.status });
+  } catch (err) { log('warn', 'otp email error', { err: err.message }); }
+}
+
+// Generate a one-time code for the current customer's checkout.
+app.post('/api/checkout/otp', checkoutLimiter, requireRole('Customer'), wrap(async (req, res) => {
+  const code = makeOtp();
+  orderOtps.set(req.user.id, { code, exp: Date.now() + OTP_MINUTES * 60 * 1000, attempts: 0 });
+  sendOtpEmail(code, req.user).catch(() => {}); // best-effort email; never blocks
+  res.json({ code, expires_in: OTP_MINUTES * 60 }); // code returned for the on-screen demo
+}));
+
 app.post('/api/checkout', checkoutLimiter, requireRole('Customer'), wrap(async (req, res) => {
   const body = req.body || {};
   const method = String(body.payment_method || 'GCASH').toUpperCase();
@@ -584,6 +630,15 @@ app.post('/api/checkout', checkoutLimiter, requireRole('Customer'), wrap(async (
   if (!['GCASH', 'MAYA', 'CARD', 'COD'].includes(method))
     return res.status(400).json({ error: 'Payment method must be GCASH, MAYA, CARD or COD' });
   if (!items.length) return res.status(400).json({ error: 'Cart is empty' });
+
+  // One-time code check (the page gets a code from /api/checkout/otp first)
+  const otpRec = orderOtps.get(req.user.id);
+  const givenOtp = String(body.otp || '').trim();
+  if (!givenOtp) return res.status(400).json({ error: 'Enter the order code to confirm.', code: 'OTP_REQUIRED' });
+  if (!otpRec || otpRec.exp < Date.now()) { orderOtps.delete(req.user.id); return res.status(400).json({ error: 'Your code expired. Tap "Place Order" again to get a new one.', code: 'OTP_EXPIRED' }); }
+  if (otpRec.attempts >= 5) { orderOtps.delete(req.user.id); return res.status(400).json({ error: 'Too many wrong codes. Tap "Place Order" again.', code: 'OTP_LOCKED' }); }
+  if (givenOtp !== otpRec.code) { otpRec.attempts++; return res.status(400).json({ error: 'Wrong code. Please check and try again.', code: 'OTP_FAILED' }); }
+  orderOtps.delete(req.user.id); // one-time use
 
   const [addr] = await q(req,
     'SELECT address_id FROM rls_customer_addresses WHERE user_id = ? ORDER BY is_default DESC, address_id LIMIT 1',
