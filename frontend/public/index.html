@@ -1289,6 +1289,8 @@ footer img { background: none; padding: 0; height: 64px; filter: drop-shadow(0 6
 /* ===== Show / hide password (eye icon) ===== */
 .pw-wrap { position: relative; display: block; margin: 6px 0 20px; }
 .pw-wrap input { width: 100%; padding-right: 46px; margin: 0; }
+/* Hide the browser's own built-in password reveal icon (Edge/IE) so only our eye shows */
+.pw-wrap input::-ms-reveal, .pw-wrap input::-ms-clear { display: none; }
 .pw-toggle { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: none; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; box-shadow: none; }
 .pw-toggle svg { width: 20px; height: 20px; display: block; }
 .pw-toggle:hover { background: rgba(0,0,0,0.05); color: var(--navy); }
