@@ -1283,6 +1283,9 @@ footer img { background: none; padding: 0; height: 64px; filter: drop-shadow(0 6
 .captcha-q { display: inline-block; padding: 2px 10px; border-radius: 8px; background: var(--brand); color: var(--gold-light); font: 700 15px var(--mono); letter-spacing: 1px; user-select: none; }
 .captcha-refresh { margin: 0 0 0 6px; padding: 0; width: 26px; height: 26px; line-height: 1; border: 1px solid var(--line); border-radius: 50%; background: #fff; color: var(--navy); box-shadow: none; font-size: 15px; cursor: pointer; vertical-align: middle; }
 .captcha-refresh:hover { background: #f4f5f8; }
+.captcha-img-wrap { margin: 6px 0 8px; }
+.captcha-img { display: block; width: 230px; max-width: 100%; height: 80px; border: 1px solid var(--line); border-radius: 10px; background: #f4f5f8; user-select: none; -webkit-user-drag: none; }
+.captcha-img.loading { opacity: 0.45; }
 
 /* ===== Hamburger menu (info links next to the logo) ===== */
 .nav-left { display: flex; align-items: center; gap: 14px; }
@@ -2086,8 +2089,9 @@ footer img { background: none; padding: 0; height: 64px; filter: drop-shadow(0 6
             <input id="loginEmail" type="email" autocomplete="username" required>
             <label for="loginPassword">Password</label>
             <input id="loginPassword" type="password" autocomplete="current-password" required>
-            <label for="loginCaptchaInput">Security check — solve: <span id="loginCaptchaQ" class="captcha-q">…</span> <button type="button" class="captcha-refresh" onclick="loadCaptcha('login')" aria-label="New question" title="New question">↻</button></label>
-            <input id="loginCaptchaInput" type="text" inputmode="numeric" autocomplete="off" placeholder="Your answer" required>
+            <label for="loginCaptchaInput">Security check — type the word you see <button type="button" class="captcha-refresh" onclick="loadCaptcha('login')" aria-label="New word" title="New word">↻</button></label>
+            <div class="captcha-img-wrap"><img id="loginCaptchaImg" class="captcha-img" alt="CAPTCHA word" width="230" height="80"></div>
+            <input id="loginCaptchaInput" type="text" inputmode="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Type the word" required>
             <button type="submit">Log In</button>
         </form>
 
@@ -2108,8 +2112,9 @@ footer img { background: none; padding: 0; height: 64px; filter: drop-shadow(0 6
                 <div><label for="regBarangay">Barangay</label><input id="regBarangay" autocomplete="address-line2" required minlength="2" title="Enter a valid barangay"></div>
                 <div><label for="regCity">City</label><input id="regCity" autocomplete="address-level2" placeholder="e.g. Quezon City" required minlength="2" title="Enter a valid city or municipality"></div>
             </div>
-            <label for="regCaptchaInput">Security check — solve: <span id="regCaptchaQ" class="captcha-q">…</span> <button type="button" class="captcha-refresh" onclick="loadCaptcha('register')" aria-label="New question" title="New question">↻</button></label>
-            <input id="regCaptchaInput" type="text" inputmode="numeric" autocomplete="off" placeholder="Your answer" required>
+            <label for="regCaptchaInput">Security check — type the word you see <button type="button" class="captcha-refresh" onclick="loadCaptcha('register')" aria-label="New word" title="New word">↻</button></label>
+            <div class="captcha-img-wrap"><img id="regCaptchaImg" class="captcha-img" alt="CAPTCHA word" width="230" height="80"></div>
+            <input id="regCaptchaInput" type="text" inputmode="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Type the word" required>
             <button type="submit">Create Account</button>
         </form>
 
@@ -2396,17 +2401,17 @@ function closeLogin() {
 
 const captchaTokens = { login: null, register: null };
 async function loadCaptcha(which) {
-    const qEl = $(which === "login" ? "loginCaptchaQ" : "regCaptchaQ");
+    const imgEl = $(which === "login" ? "loginCaptchaImg" : "regCaptchaImg");
     const inp = $(which === "login" ? "loginCaptchaInput" : "regCaptchaInput");
     if (inp) inp.value = "";
-    if (qEl) qEl.textContent = "…";
+    if (imgEl) { imgEl.removeAttribute("src"); imgEl.classList.add("loading"); }
     try {
         const c = await api("GET", "/api/captcha");
         captchaTokens[which] = c.token;
-        if (qEl) qEl.textContent = c.question + " =";
+        if (imgEl) { imgEl.src = c.image + "?t=" + Date.now(); imgEl.classList.remove("loading"); }
     } catch {
         captchaTokens[which] = null;
-        if (qEl) qEl.textContent = "(tap ↻ to retry)";
+        if (imgEl) { imgEl.classList.remove("loading"); imgEl.alt = "Couldn't load — tap ↻"; }
     }
 }
 
