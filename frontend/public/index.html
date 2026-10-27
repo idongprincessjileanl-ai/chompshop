@@ -1295,9 +1295,14 @@ footer img { background: none; padding: 0; height: 64px; filter: drop-shadow(0 6
 .pw-toggle svg { width: 20px; height: 20px; display: block; }
 .pw-toggle:hover { background: rgba(0,0,0,0.05); color: var(--navy); }
 .pw-toggle[aria-pressed="true"] { color: var(--gold-dark); }
-:root[data-theme="dark"] .pw-toggle { color: var(--muted); }
-:root[data-theme="dark"] .pw-toggle:hover { background: rgba(255,255,255,0.10); color: var(--text); }
-:root[data-theme="dark"] .pw-toggle[aria-pressed="true"] { color: var(--gold-light); }
+/* ===== Order OTP modal ===== */
+.otp-demo-note { margin: 0 0 8px; font-size: 13px; color: var(--muted); text-align: center; }
+.otp-code { font: 800 30px var(--mono); letter-spacing: 10px; text-align: center; color: var(--navy); background: var(--bg); border: 1px dashed var(--line); border-radius: 12px; padding: 12px 8px; margin: 0 0 16px; user-select: all; }
+.otp-label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 6px; }
+.otp-input { width: 100%; text-align: center; font: 700 22px var(--mono); letter-spacing: 8px; margin: 0 0 6px; }
+.otp-err { min-height: 18px; margin: 0 0 8px; color: var(--red); font-size: 13px; text-align: center; }
+.otp-resend { display: block; margin: 0 auto 2px; background: transparent; border: none; color: var(--blue); font-weight: 600; font-size: 13px; cursor: pointer; box-shadow: none; padding: 4px; }
+.otp-resend:hover { text-decoration: underline; }
 
 /* ===== Hamburger menu (info links next to the logo) ===== */
 .nav-left { display: flex; align-items: center; gap: 14px; }
@@ -2998,10 +3003,22 @@ async function checkout() {
 
     if (!(await confirmOrderModal())) return;
 
+    // Get a one-time code for this order, then ask the customer to type it to confirm.
+    let otpInfo;
+    try {
+        otpInfo = await api("POST", "/api/checkout/otp", {});
+    } catch (error) {
+        message("cartMessage", error.message, true);
+        return;
+    }
+    const typedOtp = await otpModal(otpInfo.code);
+    if (typedOtp === null) return; // cancelled
+
     try {
         const result = await api("POST", "/api/checkout", {
             payment_method: $("paymentMethod").value,
-            items: cart.map(i => ({ product_id: i.product_id, quantity: i.quantity }))
+            items: cart.map(i => ({ product_id: i.product_id, quantity: i.quantity })),
+            otp: typedOtp
         });
 
         message("cartMessage",
@@ -5185,6 +5202,99 @@ function confirmOrderModal() {
         cancel.onclick = () => close(false);
         ok.onclick = () => close(true);
         overlay.addEventListener("click", e => { if (e.target === overlay) close(false); });
+    });
+}
+
+// ---------- Order OTP (one-time code) ----------
+function otpModal(initialCode) {
+    return new Promise(resolve => {
+        let shownCode = initialCode;
+        const overlay = el("div", "co-overlay");
+        overlay.setAttribute("role", "dialog");
+        overlay.setAttribute("aria-modal", "true");
+        overlay.setAttribute("aria-labelledby", "otpTitle");
+        const card = el("div", "co-card");
+
+        const head = el("div", "co-head");
+        head.appendChild(el("div", "co-icon", "🔐"));
+        const h = el("h3", null, "Verify ");
+        h.id = "otpTitle";
+        h.appendChild(el("span", null, "Order"));
+        head.append(h, el("p", null, "Enter the one-time code to place your order."));
+
+        const body = el("div", "co-body");
+        body.appendChild(el("p", "otp-demo-note", "Demo mode — your code is shown below:"));
+        const codeBox = el("div", "otp-code", shownCode);
+        body.appendChild(codeBox);
+        const label = el("label", "otp-label", "Type the code to confirm");
+        label.setAttribute("for", "otpField");
+        body.appendChild(label);
+        const input = el("input", "otp-input");
+        input.id = "otpField";
+        input.type = "text";
+        input.inputMode = "numeric";
+        input.autocomplete = "one-time-code";
+        input.maxLength = 6;
+        input.placeholder = "6-digit code";
+        input.setAttribute("aria-label", "One-time code");
+        body.appendChild(input);
+        const err = el("p", "otp-err");
+        body.appendChild(err);
+        const resend = el("button", "otp-resend", "↻ Get a new code");
+        resend.type = "button";
+        body.appendChild(resend);
+
+        const actions = el("div", "co-actions");
+        const cancel = el("button", "co-cancel", "Cancel");
+        const ok = el("button", "co-ok", "Confirm Order");
+        cancel.type = ok.type = "button";
+        actions.append(cancel, ok);
+
+        card.append(head, body, actions);
+        overlay.appendChild(card);
+        document.body.appendChild(overlay);
+        document.documentElement.style.overflow = "hidden";
+        input.focus();
+
+        input.oninput = () => { input.value = input.value.replace(/\D/g, "").slice(0, 6); err.textContent = ""; };
+
+        let done = false;
+        const close = answer => {
+            if (done) return;
+            done = true;
+            document.removeEventListener("keydown", onKey);
+            overlay.classList.add("closing");
+            setTimeout(() => {
+                overlay.remove();
+                document.documentElement.style.overflow = "";
+                resolve(answer);
+            }, 200);
+        };
+        const submit = () => {
+            const v = input.value.trim();
+            if (v.length !== 6) { err.textContent = "Enter the 6-digit code shown above."; input.focus(); return; }
+            close(v);
+        };
+        const onKey = e => {
+            if (e.key === "Escape") close(null);
+            else if (e.key === "Enter") { e.preventDefault(); submit(); }
+        };
+        document.addEventListener("keydown", onKey);
+        cancel.onclick = () => close(null);
+        ok.onclick = submit;
+        resend.onclick = async () => {
+            resend.disabled = true;
+            try {
+                const info = await api("POST", "/api/checkout/otp", {});
+                shownCode = info.code;
+                codeBox.textContent = shownCode;
+                input.value = "";
+                err.textContent = "";
+                input.focus();
+            } catch (e2) { err.textContent = "Couldn't get a new code. Try again."; }
+            resend.disabled = false;
+        };
+        overlay.addEventListener("click", e => { if (e.target === overlay) close(null); });
     });
 }
 
