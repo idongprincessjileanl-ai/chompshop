@@ -1316,28 +1316,25 @@ footer img { background: none; padding: 0; height: 64px; filter: drop-shadow(0 6
 .voucher-info small { color: var(--muted); font-size: 12px; }
 .voucher-claim { padding: 8px 16px; font-size: 13px; font-weight: 700; border-radius: 9px; white-space: nowrap; }
 .voucher-claim:disabled { background: var(--line); color: var(--muted); cursor: default; box-shadow: none; }
-/* ===== Welcome animation (after login / register) ===== */
-.welcome-ov { position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center; background: radial-gradient(circle at 50% 32%, #1c3366, #0a1631 72%); opacity: 0; transition: opacity .42s ease; }
+/* ===== Welcome animation (after login / register) — minimalist ===== */
+.welcome-ov { position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center; background: #0c1a3a; opacity: 0; transition: opacity .5s ease; }
 .welcome-ov.in { opacity: 1; }
 .welcome-ov.out { opacity: 0; }
-.welcome-card { text-align: center; padding: 20px; transform: translateY(16px) scale(.95); opacity: 0; transition: transform .55s cubic-bezier(.2,.8,.3,1), opacity .5s ease; }
+.welcome-card { text-align: center; transform: scale(.97); opacity: 0; transition: transform .6s cubic-bezier(.2,.8,.3,1), opacity .55s ease; }
 .welcome-ov.in .welcome-card { transform: none; opacity: 1; }
-.welcome-ring { position: relative; width: 120px; height: 120px; margin: 0 auto 22px; display: grid; place-items: center; }
-.welcome-ring svg { position: absolute; inset: 0; width: 120px; height: 120px; transform: rotate(-90deg); }
-.welcome-ring circle { fill: none; stroke-width: 5; stroke-linecap: round; }
-.welcome-ring .track { stroke: rgba(255,255,255,.14); }
-.welcome-ring .prog { stroke: #e8c868; stroke-dasharray: 339.3; stroke-dashoffset: 339.3; animation: welcomeRing 1.5s cubic-bezier(.4,0,.2,1) forwards; }
-@keyframes welcomeRing { to { stroke-dashoffset: 46; } }
-.welcome-mark { width: 62px; height: 62px; border-radius: 15px; background: #fff; display: grid; place-items: center; overflow: hidden; box-shadow: 0 8px 22px rgba(0,0,0,.4); animation: welcomePop .6s cubic-bezier(.2,.9,.3,1.3) both; }
-.welcome-mark img { width: 100%; height: 100%; object-fit: contain; }
-.welcome-emoji { font-size: 30px; }
-@keyframes welcomePop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-.welcome-brand { font: 800 25px var(--display); letter-spacing: .07em; text-transform: uppercase; color: #fff; margin: 0 0 8px; }
-.welcome-brand .g { color: #e8c868; }
-.welcome-hi { font: 600 16px var(--sans); color: #d2dbee; margin: 0; }
-.welcome-hi b { color: #fff; }
-.welcome-sub { font: 500 12.5px var(--sans); color: #8ea0c6; margin: 10px 0 0; letter-spacing: .05em; }
-@media (prefers-reduced-motion: reduce) { .welcome-card { transition: none; transform: none; opacity: 1; } .welcome-ring .prog, .welcome-mark { animation: none; } .welcome-ring .prog { stroke-dashoffset: 46; } }
+.welcome-ring { position: relative; width: 140px; height: 140px; margin: 0 auto 30px; display: grid; place-items: center; }
+.welcome-ring svg { position: absolute; inset: 0; width: 140px; height: 140px; transform: rotate(-90deg); }
+.welcome-ring circle { fill: none; stroke-width: 2; stroke-linecap: round; }
+.welcome-ring .track { stroke: rgba(255,255,255,.08); }
+.welcome-ring .prog { stroke: #e8c868; stroke-dasharray: 414.7; stroke-dashoffset: 414.7; animation: welcomeRing 1.6s cubic-bezier(.3,0,.2,1) forwards; }
+@keyframes welcomeRing { to { stroke-dashoffset: 0; } }
+.welcome-mark { width: 80px; height: 80px; border-radius: 18px; background: #fff; display: grid; place-items: center; overflow: hidden; box-shadow: 0 8px 26px rgba(0,0,0,.35); animation: welcomeFade .7s ease both; }
+.welcome-mark img { width: 82%; height: 82%; object-fit: contain; }
+.welcome-emoji { font-size: 36px; }
+@keyframes welcomeFade { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: scale(1); } }
+.welcome-name { font: 600 24px var(--display); color: #fff; margin: 0 0 10px; letter-spacing: .005em; }
+.welcome-sub { font: 600 12px var(--sans); color: #7f90b5; margin: 0; letter-spacing: .32em; text-transform: uppercase; }
+@media (prefers-reduced-motion: reduce) { .welcome-card { transition: none; transform: none; opacity: 1; } .welcome-ring .prog, .welcome-mark { animation: none; } .welcome-ring .prog { stroke-dashoffset: 0; } }
 
 /* ===== Hamburger menu (info links next to the logo) ===== */
 .nav-left { display: flex; align-items: center; gap: 14px; }
@@ -2508,14 +2505,13 @@ function welcomeAnimation(name) {
         ov.innerHTML =
             '<div class="welcome-card">' +
               '<div class="welcome-ring">' +
-                '<svg viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="54"/><circle class="prog" cx="60" cy="60" r="54"/></svg>' +
+                '<svg viewBox="0 0 140 140"><circle class="track" cx="70" cy="70" r="66"/><circle class="prog" cx="70" cy="70" r="66"/></svg>' +
                 '<div class="welcome-mark"><img src="logo-chip.png" alt="" onerror="if(!this.dataset.retry){this.dataset.retry=1;this.src=\'logo.jpg\'}else{this.replaceWith(Object.assign(document.createElement(\'span\'),{textContent:\'🛒\',className:\'welcome-emoji\'}))}"></div>' +
               '</div>' +
-              '<div class="welcome-brand">Chomp <span class="g">Shop</span></div>' +
-              '<p class="welcome-hi">Welcome, <b></b>! 🎉</p>' +
-              '<p class="welcome-sub">Getting your shop ready…</p>' +
+              '<p class="welcome-name"></p>' +
+              '<p class="welcome-sub">Chomp Shop</p>' +
             '</div>';
-        ov.querySelector(".welcome-hi b").textContent = (name || "friend").trim().split(" ")[0] || "friend";
+        ov.querySelector(".welcome-name").textContent = "Welcome, " + ((name || "friend").trim().split(" ")[0] || "friend");
         document.body.appendChild(ov);
         document.documentElement.style.overflow = "hidden";
         requestAnimationFrame(() => requestAnimationFrame(() => ov.classList.add("in")));
@@ -2523,7 +2519,7 @@ function welcomeAnimation(name) {
             ov.classList.remove("in");
             ov.classList.add("out");
             setTimeout(() => { ov.remove(); document.documentElement.style.overflow = ""; resolve(); }, 430);
-        }, 1900);
+        }, 2100);
     });
 }
 
