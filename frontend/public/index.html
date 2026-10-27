@@ -1303,6 +1303,19 @@ footer img { background: none; padding: 0; height: 64px; filter: drop-shadow(0 6
 .otp-err { min-height: 18px; margin: 0 0 8px; color: var(--red); font-size: 13px; text-align: center; }
 .otp-resend { display: block; margin: 0 auto 2px; background: transparent; border: none; color: var(--blue); font-weight: 600; font-size: 13px; cursor: pointer; box-shadow: none; padding: 4px; }
 .otp-resend:hover { text-decoration: underline; }
+/* ===== Vouchers ===== */
+.voucher-row select { margin: 0; padding: 7px 10px; font-size: 13px; width: auto; max-width: 62%; border-radius: 8px; }
+.voucher-hint { margin: 2px 0 6px; font-size: 12px; color: var(--green); font-weight: 600; min-height: 14px; }
+.sum-discount .disc { color: var(--green); font-weight: 700; }
+.voucher-open-btn { width: 100%; margin: 4px 0 10px; font-size: 13px; }
+.voucher-card { text-align: left; }
+.voucher-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px dashed var(--line); border-radius: 12px; margin-bottom: 10px; }
+.voucher-info { display: flex; flex-direction: column; gap: 2px; }
+.voucher-badge { font: 800 16px var(--display); color: var(--gold-dark); }
+.voucher-code { font: 700 13px var(--mono); letter-spacing: 1px; color: var(--navy); }
+.voucher-info small { color: var(--muted); font-size: 12px; }
+.voucher-claim { padding: 8px 16px; font-size: 13px; font-weight: 700; border-radius: 9px; white-space: nowrap; }
+.voucher-claim:disabled { background: var(--line); color: var(--muted); cursor: default; box-shadow: none; }
 
 /* ===== Hamburger menu (info links next to the logo) ===== */
 .nav-left { display: flex; align-items: center; gap: 14px; }
@@ -1751,6 +1764,13 @@ footer img { background: none; padding: 0; height: 64px; filter: drop-shadow(0 6
             <div class="sum-row"><span>Items</span><span id="sumItems">0</span></div>
             <div class="sum-row"><span>Subtotal</span><span id="sumSubtotal">₱0.00</span></div>
             <div class="sum-row"><span>Shipping</span><span class="free">FREE</span></div>
+            <div class="sum-row voucher-row">
+                <span>🎟 Voucher</span>
+                <select id="voucherSelect" onchange="onVoucherChange()"><option value="">None</option></select>
+            </div>
+            <p id="voucherHint" class="voucher-hint"></p>
+            <div class="sum-row sum-discount hidden" id="discountRow"><span>Discount</span><span id="sumDiscount" class="disc">−₱0.00</span></div>
+            <button type="button" class="ghost voucher-open-btn" onclick="voucherPopup()">🎟 Get vouchers</button>
             <h3 id="cartTotal">Total: ₱0.00</h3>
 
             <label>Deliver To</label>
@@ -2914,6 +2934,98 @@ function clearCart() {
     message("cartMessage", "Cart cleared.");
 }
 
+// ---------- Vouchers ----------
+let VOUCHERS = [];
+let appliedVoucher = null; // the voucher code currently applied in the cart
+function claimedCodes() { try { return JSON.parse(localStorage.getItem("chomp-vouchers") || "[]"); } catch { return []; } }
+function saveClaimed(codes) { try { localStorage.setItem("chomp-vouchers", JSON.stringify(codes)); } catch {} }
+function claimVoucher(code) { const c = claimedCodes(); if (!c.includes(code)) { c.push(code); saveClaimed(c); } }
+function voucherByCode(code) { return VOUCHERS.find(v => v.code === code) || null; }
+function cartSubtotal() { return cart.reduce((s, i) => s + i.price * i.quantity, 0); }
+function jsDiscount(v, subtotal) {
+    if (!v || subtotal < v.min) return 0;
+    let d = v.type === "percent" ? subtotal * (v.value / 100) : v.value;
+    if (v.maxDiscount) d = Math.min(d, v.maxDiscount);
+    return Math.min(Math.round(d * 100) / 100, subtotal);
+}
+async function fetchVouchers() { try { VOUCHERS = await api("GET", "/api/vouchers"); } catch { VOUCHERS = []; } }
+
+function populateVoucherSelect() {
+    const sel = $("voucherSelect");
+    if (!sel) return;
+    const sub = cartSubtotal();
+    const claimed = claimedCodes().map(voucherByCode).filter(Boolean);
+    sel.innerHTML = "";
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = claimed.length ? "None" : "No vouchers claimed yet";
+    sel.appendChild(none);
+    claimed.forEach(v => {
+        const o = document.createElement("option");
+        o.value = v.code;
+        const ok = sub >= v.min;
+        o.textContent = v.label + " · " + v.code + (ok ? "" : " (min " + money(v.min) + ")");
+        o.disabled = !ok;
+        sel.appendChild(o);
+    });
+    if (appliedVoucher && claimed.some(v => v.code === appliedVoucher && sub >= v.min)) sel.value = appliedVoucher;
+    else { appliedVoucher = null; sel.value = ""; }
+}
+function onVoucherChange() {
+    const sel = $("voucherSelect");
+    appliedVoucher = sel && sel.value ? sel.value : null;
+    renderCart();
+}
+
+// Popup where customers claim voucher codes
+function voucherPopup() {
+    const overlay = el("div", "co-overlay");
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    const card = el("div", "co-card voucher-card");
+    const head = el("div", "co-head");
+    head.appendChild(el("div", "co-icon", "🎟"));
+    const h = el("h3", null, "Claim ");
+    h.appendChild(el("span", null, "Vouchers"));
+    head.append(h, el("p", null, "Claim a code, then pick it in your cart at checkout."));
+    const body = el("div", "co-body");
+    if (!VOUCHERS.length) body.appendChild(el("p", "voucher-hint", "No vouchers available right now."));
+    VOUCHERS.forEach(v => {
+        const row = el("div", "voucher-item");
+        const info = el("div", "voucher-info");
+        info.append(el("div", "voucher-badge", v.label), el("div", "voucher-code", v.code), el("small", null, v.desc));
+        const btn = el("button", "voucher-claim");
+        const claimed = claimedCodes().includes(v.code);
+        btn.textContent = claimed ? "✓ Claimed" : "Claim";
+        btn.disabled = claimed;
+        btn.onclick = () => {
+            claimVoucher(v.code);
+            btn.textContent = "✓ Claimed";
+            btn.disabled = true;
+            populateVoucherSelect();
+            showToast("Voucher " + v.code + " claimed! Pick it in your cart.", true);
+        };
+        row.append(info, btn);
+        body.appendChild(row);
+    });
+    const actions = el("div", "co-actions");
+    const close = el("button", "co-ok", "Done");
+    close.type = "button";
+    actions.appendChild(close);
+    card.append(head, body, actions);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    document.documentElement.style.overflow = "hidden";
+    close.focus();
+    const done = () => { overlay.classList.add("closing"); setTimeout(() => { overlay.remove(); document.documentElement.style.overflow = ""; }, 200); };
+    close.onclick = done;
+    overlay.addEventListener("click", e => { if (e.target === overlay) done(); });
+}
+function maybeAutoVoucherPopup() {
+    try { if (sessionStorage.getItem("chomp-voucher-seen")) return; sessionStorage.setItem("chomp-voucher-seen", "1"); } catch {}
+    if (VOUCHERS.length) setTimeout(voucherPopup, 1200);
+}
+
 function renderCart() {
     const tbody = $("cartRows");
     tbody.replaceChildren();
@@ -2933,6 +3045,9 @@ function renderCart() {
         cell.appendChild(browse);
         $("cartTotal").textContent = "Total: ₱0.00";
         $("sumSubtotal").textContent = money(0);
+        if ($("discountRow")) $("discountRow").classList.add("hidden");
+        if ($("voucherHint")) $("voucherHint").textContent = "";
+        populateVoucherSelect();
         return;
     }
 
@@ -2983,8 +3098,20 @@ function renderCart() {
         action.appendChild(remove);
     });
 
-    $("cartTotal").textContent = "Total: " + money(total);
+    // Voucher discount (if one is applied and the subtotal qualifies)
+    const v = appliedVoucher ? voucherByCode(appliedVoucher) : null;
+    const discount = jsDiscount(v, total);
+    if (discount > 0) {
+        if ($("discountRow")) $("discountRow").classList.remove("hidden");
+        if ($("sumDiscount")) $("sumDiscount").textContent = "−" + money(discount);
+        if ($("voucherHint")) $("voucherHint").textContent = "✓ " + v.label + " applied (" + v.code + ")";
+    } else {
+        if ($("discountRow")) $("discountRow").classList.add("hidden");
+        if ($("voucherHint")) $("voucherHint").textContent = "";
+    }
+    $("cartTotal").textContent = "Total: " + money(Math.max(0, total - discount));
     $("sumSubtotal").textContent = money(total);
+    populateVoucherSelect();
 }
 
 async function checkout() {
@@ -3018,12 +3145,15 @@ async function checkout() {
         const result = await api("POST", "/api/checkout", {
             payment_method: $("paymentMethod").value,
             items: cart.map(i => ({ product_id: i.product_id, quantity: i.quantity })),
-            otp: typedOtp
+            otp: typedOtp,
+            voucher_code: appliedVoucher || ""
         });
 
         message("cartMessage",
-            "Order #" + result.order_id + " placed! Total: " + money(result.total_amount) + ".");
+            "Order #" + result.order_id + " placed! Total: " + money(result.total_amount) + "."
+            + (result.discount ? " You saved " + money(result.discount) + " with " + result.voucher_code + "! 🎟" : ""));
 
+        appliedVoucher = null;
         cart = [];
         saveCart();
         renderCart();
@@ -5164,13 +5294,19 @@ function confirmOrderModal() {
         box("Shipping", "Free delivery");
         body.appendChild(info);
 
+        const vcur = appliedVoucher ? voucherByCode(appliedVoucher) : null;
+        const vdisc = jsDiscount(vcur, total);
         const rows = el("div", "co-rows");
         const r1 = el("div"); r1.append(el("span", null, "Subtotal"), el("span", null, money(total)));
         const r2 = el("div"); r2.append(el("span", null, "Shipping"), el("span", "free", "FREE"));
         rows.append(r1, r2);
+        if (vdisc > 0) {
+            const r3 = el("div"); r3.append(el("span", null, "Voucher (" + vcur.code + ")"), el("span", "free", "−" + money(vdisc)));
+            rows.append(r3);
+        }
         body.appendChild(rows);
         const tot = el("div", "co-total");
-        tot.append(el("span", null, "Total"), el("span", null, money(total)));
+        tot.append(el("span", null, "Total"), el("span", null, money(Math.max(0, total - vdisc))));
         body.appendChild(tot);
 
         const actions = el("div", "co-actions");
@@ -5429,6 +5565,7 @@ updateAccountUI(); // shows the login page first if nobody is logged in (it appe
 showView(currentView());
 loadProducts();
 loadSuppliers();
+fetchVouchers().then(() => { populateVoucherSelect(); maybeAutoVoucherPopup(); });
 </script>
 
 </body>
