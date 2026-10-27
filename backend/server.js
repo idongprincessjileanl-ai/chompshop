@@ -208,38 +208,101 @@ function issueToken(u) {
   };
 }
 
-// ===================== CAPTCHA (self-hosted math challenge, no external service) =====================
-// A stateless signed token carries the answer; a consumed-token set blocks reuse.
-const captchaUsed = new Map(); // jti -> expiry ms
-setInterval(() => { const now = Date.now(); for (const [k, exp] of captchaUsed) if (exp < now) captchaUsed.delete(k); }, 60 * 1000).unref?.();
+// ===================== CAPTCHA (self-hosted "type the blurry word", no external service) =====================
+// The answer word is kept ONLY on the server (in captchaChallenges, keyed by jti). The client gets
+// an opaque signed token (jti inside, no answer) plus an image URL. The word is revealed solely as
+// rendered pixels in a distorted/blurry SVG served as an image, so it never appears in page source or JSON.
+const captchaUsed = new Map();        // jti -> expiry ms (blocks reuse of a solved token)
+const captchaChallenges = new Map();  // jti -> { word, exp }
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, exp] of captchaUsed) if (exp < now) captchaUsed.delete(k);
+  for (const [k, v] of captchaChallenges) if (v.exp < now) captchaChallenges.delete(k);
+}, 60 * 1000).unref?.();
 
 const CAPTCHA_MINUTES = 5;
 
-// GET a fresh challenge: returns the question text and a signed token that encodes the answer.
+// Short, friendly, easy-to-read words (ambiguous shapes avoided). Answer is case-insensitive.
+const CAPTCHA_WORDS = [
+  'apple', 'bread', 'chair', 'cloud', 'dance', 'eagle', 'frost', 'grape', 'house', 'juice',
+  'lemon', 'mango', 'music', 'ocean', 'piano', 'plant', 'river', 'robot', 'salad', 'smile',
+  'snack', 'stone', 'sugar', 'table', 'tiger', 'toast', 'train', 'water', 'zebra', 'bloom',
+  'candy', 'chomp', 'cheese', 'coffee', 'donut', 'dragon', 'flower', 'garden', 'guitar', 'orange',
+  'pepper', 'planet', 'rocket', 'silver', 'summer', 'tomato', 'wonder', 'yellow'
+];
+
+const CAPTCHA_COLORS = ['#1e2a4a', '#2b3a67', '#3a2d5c', '#1f4536', '#5c2b2b', '#2c2c54', '#334155'];
+function rnd(min, max) { return min + Math.random() * (max - min); }
+
+// Build a distorted, slightly blurry SVG of the word. Letters are individually rotated, nudged and
+// colored; faint curved noise lines and dots sit on top; a gaussian blur + turbulence displacement
+// keep it machine-unfriendly while staying human-readable.
+function captchaSvg(word) {
+  const W = 230, H = 80;
+  const letters = word.toUpperCase().split('');
+  const step = (W - 40) / letters.length;
+  let glyphs = '';
+  letters.forEach((ch, i) => {
+    const x = 24 + i * step + rnd(-4, 4);
+    const y = H / 2 + rnd(-6, 6);
+    const rot = rnd(-20, 20);
+    const size = rnd(30, 40);
+    const color = CAPTCHA_COLORS[Math.floor(Math.random() * CAPTCHA_COLORS.length)];
+    glyphs += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="${size.toFixed(1)}" fill="${color}" transform="rotate(${rot.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})" dominant-baseline="middle" text-anchor="middle">${ch}</text>`;
+  });
+  let lines = '';
+  for (let i = 0; i < 3; i++) {
+    const y1 = rnd(10, H - 10), y2 = rnd(10, H - 10), cy = rnd(0, H);
+    const color = CAPTCHA_COLORS[Math.floor(Math.random() * CAPTCHA_COLORS.length)];
+    lines += `<path d="M0 ${y1.toFixed(1)} Q ${(W / 2).toFixed(1)} ${cy.toFixed(1)} ${W} ${y2.toFixed(1)}" stroke="${color}" stroke-width="${rnd(1, 2).toFixed(1)}" fill="none" opacity="0.4"/>`;
+  }
+  let dots = '';
+  for (let i = 0; i < 40; i++) {
+    dots += `<circle cx="${rnd(0, W).toFixed(1)}" cy="${rnd(0, H).toFixed(1)}" r="${rnd(0.5, 1.6).toFixed(1)}" fill="#334155" opacity="0.35"/>`;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="CAPTCHA image">
+<defs>
+  <filter id="d"><feTurbulence type="fractalNoise" baseFrequency="0.018 0.03" numOctaves="2" seed="${Math.floor(rnd(0, 9999))}" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="6" xChannelSelector="R" yChannelSelector="G"/></filter>
+  <filter id="b"><feGaussianBlur stdDeviation="0.9"/></filter>
+</defs>
+<rect width="${W}" height="${H}" fill="#f4f5f8"/>
+<g filter="url(#b)"><g filter="url(#d)">${glyphs}${lines}</g></g>
+${dots}
+</svg>`;
+}
+
+// GET a fresh challenge: stores the word server-side, returns an opaque token + the image URL.
 app.get('/api/captcha', wrap(async (req, res) => {
-  const a = crypto.randomInt(1, 10);
-  const b = crypto.randomInt(1, 10);
-  const ops = [['+', a + b], ['x', a * b], ['-', a + b >= b ? a : b]]; // keep results non-negative
-  const [sym, answer] = ops[crypto.randomInt(0, ops.length)];
-  const x = sym === '-' ? Math.max(a, b) : a;
-  const y = sym === '-' ? Math.min(a, b) : b;
-  const realAnswer = sym === '+' ? x + y : sym === 'x' ? x * y : x - y;
+  const word = CAPTCHA_WORDS[crypto.randomInt(0, CAPTCHA_WORDS.length)];
   const jti = crypto.randomUUID();
-  const token = jwt.sign({ a: realAnswer, jti, scope: 'captcha' }, JWT_SECRET, { expiresIn: `${CAPTCHA_MINUTES}m` });
-  res.json({ question: `${x} ${sym} ${y}`, token });
+  captchaChallenges.set(jti, { word, exp: Date.now() + CAPTCHA_MINUTES * 60 * 1000 });
+  const token = jwt.sign({ jti, scope: 'captcha' }, JWT_SECRET, { expiresIn: `${CAPTCHA_MINUTES}m` });
+  res.json({ token, image: `/api/captcha/image/${jti}` });
 }));
 
-// Returns true only for a valid, unexpired, unused token whose answer matches. Missing/invalid/expired/reused -> false.
+// Serve the distorted word as an image (never cached). The answer lives only in these pixels.
+app.get('/api/captcha/image/:jti', wrap(async (req, res) => {
+  const ch = captchaChallenges.get(req.params.jti);
+  res.set('Cache-Control', 'no-store, max-age=0');
+  res.type('image/svg+xml');
+  if (!ch || ch.exp < Date.now()) return res.status(404).send('<svg xmlns="http://www.w3.org/2000/svg" width="230" height="80"><rect width="230" height="80" fill="#f4f5f8"/><text x="115" y="46" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#64748b">expired — tap ↻</text></svg>');
+  res.send(captchaSvg(ch.word));
+}));
+
+// Returns true only for a valid, unexpired, unused token whose typed word matches. Case-insensitive.
 function verifyCaptcha(req) {
   const token = req.body?.captcha_token;
-  const given = Number(req.body?.captcha_answer);
-  if (!token || !Number.isFinite(given)) return false;
+  const given = String(req.body?.captcha_answer || '').trim().toLowerCase();
+  if (!token || !given) return false;
   let p;
   try { p = jwt.verify(token, JWT_SECRET); } catch { return false; }
-  if (p.scope !== 'captcha' || typeof p.a !== 'number' || !p.jti) return false;
+  if (p.scope !== 'captcha' || !p.jti) return false;
   if (captchaUsed.has(p.jti)) return false;           // reused token
-  if (given !== p.a) return false;                    // wrong answer
+  const ch = captchaChallenges.get(p.jti);
+  if (!ch || ch.exp < Date.now()) return false;       // unknown/expired challenge
+  if (given !== ch.word.toLowerCase()) return false;  // wrong word
   captchaUsed.set(p.jti, (p.exp || 0) * 1000 || Date.now() + CAPTCHA_MINUTES * 60 * 1000);
+  captchaChallenges.delete(p.jti);                    // one-time use
   return true;
 }
 
