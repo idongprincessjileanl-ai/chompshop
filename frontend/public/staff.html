@@ -922,6 +922,21 @@ pre { max-height: 480px; }
 .captcha-refresh { margin: 0 0 0 6px; padding: 0; width: 26px; height: 26px; line-height: 1; border: 1px solid var(--line); border-radius: 50%; background: var(--card); color: var(--navy); box-shadow: none; font-size: 15px; cursor: pointer; vertical-align: middle; }
 .captcha-refresh:hover { background: var(--gold); color: var(--navy-deep); border-color: var(--gold); }
 .login input#stCaptchaInput { text-align: center; font-size: 16px; letter-spacing: normal; }
+/* CAPTCHA image (type the blurry word) */
+.captcha-img-wrap { margin: 6px 0 8px; }
+.captcha-img { display: block; width: 230px; max-width: 100%; height: 80px; border: 1px solid var(--line); border-radius: 10px; background: #f4f5f8; user-select: none; -webkit-user-drag: none; }
+.captcha-img.loading { opacity: 0.45; }
+/* Show / hide password (eye icon) */
+.pw-wrap { position: relative; display: block; margin: 6px 0 20px; }
+.pw-wrap input { width: 100%; padding-right: 46px; margin: 0; }
+.pw-wrap input::-ms-reveal, .pw-wrap input::-ms-clear { display: none; }
+.pw-toggle { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: none; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; box-shadow: none; }
+.pw-toggle svg { width: 20px; height: 20px; display: block; }
+.pw-toggle:hover { background: rgba(0,0,0,0.05); color: var(--navy); }
+.pw-toggle[aria-pressed="true"] { color: var(--gold-dark); }
+:root[data-theme="dark"] .pw-toggle { color: var(--muted); }
+:root[data-theme="dark"] .pw-toggle:hover { background: rgba(255,255,255,0.10); color: var(--text); }
+:root[data-theme="dark"] .pw-toggle[aria-pressed="true"] { color: var(--gold-light); }
 
 /* Dashboard */
 .dash-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin: 14px 0 8px; }
@@ -980,9 +995,10 @@ pre { max-height: 480px; }
         <label for="email">Email</label>
         <input id="email" type="email" autocomplete="username" required>
         <label for="password">Password</label>
-        <input id="password" type="password" autocomplete="current-password" required>
-        <label for="stCaptchaInput">Security check — solve: <span id="stCaptchaQ" class="captcha-q">…</span> <button type="button" class="captcha-refresh" onclick="loadStaffCaptcha()" title="New question" aria-label="New question">↻</button></label>
-        <input id="stCaptchaInput" type="text" inputmode="numeric" autocomplete="off" placeholder="Your answer" required>
+        <div class="pw-wrap"><input id="password" type="password" autocomplete="current-password" required><button type="button" class="pw-toggle" aria-pressed="false" aria-label="Show password" onclick="togglePw('password', this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+        <label for="stCaptchaInput">Security check — type the word you see <button type="button" class="captcha-refresh" onclick="loadStaffCaptcha()" title="New word" aria-label="New word">↻</button></label>
+        <div class="captcha-img-wrap"><img id="stCaptchaImg" class="captcha-img" alt="CAPTCHA word" width="230" height="80"></div>
+        <input id="stCaptchaInput" type="text" inputmode="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Type the word" required>
         <button type="submit">Log In</button>
     </form>
     <p id="loginMessage" class="status"></p>
@@ -1319,18 +1335,32 @@ async function login(event) {
     }
 }
 
+// Eye icons for the show/hide password toggle
+const PW_EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+const PW_EYEOFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+function togglePw(id, btn) {
+    const inp = $(id);
+    if (!inp) return;
+    const reveal = inp.type === "password";
+    inp.type = reveal ? "text" : "password";
+    btn.innerHTML = reveal ? PW_EYEOFF : PW_EYE;
+    btn.setAttribute("aria-pressed", reveal ? "true" : "false");
+    btn.setAttribute("aria-label", reveal ? "Hide password" : "Show password");
+    try { inp.focus({ preventScroll: true }); } catch { inp.focus(); }
+}
+
 let staffCaptchaToken = null;
 async function loadStaffCaptcha() {
-    const q = $("stCaptchaQ"), inp = $("stCaptchaInput");
+    const imgEl = $("stCaptchaImg"), inp = $("stCaptchaInput");
     if (inp) inp.value = "";
-    if (q) q.textContent = "…";
+    if (imgEl) { imgEl.removeAttribute("src"); imgEl.classList.add("loading"); }
     try {
         const c = await api("GET", "/api/captcha");
         staffCaptchaToken = c.token;
-        if (q) q.textContent = c.question + " =";
+        if (imgEl) { imgEl.src = c.image + "?t=" + Date.now(); imgEl.classList.remove("loading"); }
     } catch {
         staffCaptchaToken = null;
-        if (q) q.textContent = "(tap ↻)";
+        if (imgEl) { imgEl.classList.remove("loading"); imgEl.alt = "Couldn't load — tap ↻"; }
     }
 }
 
