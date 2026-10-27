@@ -621,6 +621,26 @@ app.post('/api/checkout/otp', checkoutLimiter, requireRole('Customer'), wrap(asy
   res.json({ code, expires_in: OTP_MINUTES * 60 }); // code returned for the on-screen demo
 }));
 
+// ===================== VOUCHERS (claimable discount codes) =====================
+const VOUCHERS = [
+  { code: 'WELCOME100', label: '₱100 OFF', type: 'fixed',   value: 100, min: 800,  desc: '₱100 off orders ₱800 and up' },
+  { code: 'CHOMP10',    label: '10% OFF',  type: 'percent', value: 10,  min: 1000, maxDiscount: 500, desc: '10% off orders ₱1,000+ (max ₱500)' },
+  { code: 'SAVE50',     label: '₱50 OFF',  type: 'fixed',   value: 50,  min: 300,  desc: '₱50 off orders ₱300 and up' },
+];
+function findVoucher(code) { return VOUCHERS.find((v) => v.code === String(code || '').trim().toUpperCase()) || null; }
+function voucherDiscount(v, subtotal) {
+  if (!v || subtotal < v.min) return 0;
+  let d = v.type === 'percent' ? subtotal * (v.value / 100) : v.value;
+  if (v.maxDiscount) d = Math.min(d, v.maxDiscount);
+  return Math.min(Math.round(d * 100) / 100, subtotal);
+}
+
+// Public list of voucher codes the shop is offering (shown in the claim popup).
+app.get('/api/vouchers', wrap(async (req, res) => {
+  res.json(VOUCHERS.map(({ code, label, type, value, min, maxDiscount, desc }) =>
+    ({ code, label, type, value, min, maxDiscount: maxDiscount || null, desc })));
+}));
+
 app.post('/api/checkout', checkoutLimiter, requireRole('Customer'), wrap(async (req, res) => {
   const body = req.body || {};
   const method = String(body.payment_method || 'GCASH').toUpperCase();
@@ -648,7 +668,23 @@ app.post('/api/checkout', checkoutLimiter, requireRole('Customer'), wrap(async (
   const [sets] = await q(req, 'CALL sp_place_order(?, ?, ?, ?, @order_id)',
     [req.user.id, addr[0].address_id, JSON.stringify(items), method]);
   const order = sets[0][0];
-  audit(req, 'checkout', 'order', order.order_id, { total: order.total_amount, method, items: items.length });
+
+  // Apply a voucher discount if one was given and the order qualifies (lowers the stored payment total)
+  const subtotal = Number(order.total_amount) || 0;
+  const voucher = findVoucher(body.voucher_code);
+  const discount = voucherDiscount(voucher, subtotal);
+  if (discount > 0) {
+    const finalTotal = Math.round((subtotal - discount) * 100) / 100;
+    try {
+      await sys('UPDATE payments SET amount = ? WHERE order_id = ?', [finalTotal, order.order_id]);
+      order.subtotal = subtotal;
+      order.discount = discount;
+      order.voucher_code = voucher.code;
+      order.total_amount = finalTotal;
+    } catch (err) { log('warn', 'voucher discount update failed', { order: order.order_id, err: err.message }); }
+  }
+
+  audit(req, 'checkout', 'order', order.order_id, { total: order.total_amount, discount, voucher: order.voucher_code || null, method, items: items.length });
   // AI fraud check (never blocks the checkout if it fails)
   try { await scoreOrder(order.order_id); } catch (err) { log('warn', 'AI fraud check failed', { order: order.order_id, err: err.message }); }
   // Send order confirmation email (fire-and-forget; never blocks or fails the checkout)
