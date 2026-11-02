@@ -5451,7 +5451,7 @@ function otpModal(initialCode, method, opts) {
         let codeBox = null;
         if (emailMode) {
             const note = el("p", "otp-mail-note");
-            note.append(document.createTextNode("We sent a 6-digit code to "));
+            note.append(document.createTextNode("We sent a verification code to "));
             note.appendChild(el("b", null, opts.email || "your email"));
             note.append(document.createTextNode(". Check your inbox (and Spam), then type it below."));
             body.appendChild(note);
@@ -5468,8 +5468,8 @@ function otpModal(initialCode, method, opts) {
         input.type = "text";
         input.inputMode = "numeric";
         input.autocomplete = "one-time-code";
-        input.maxLength = 6;
-        input.placeholder = "6-digit code";
+        input.maxLength = emailMode ? 10 : 6;
+        input.placeholder = emailMode ? "Enter the code" : "6-digit code";
         input.setAttribute("aria-label", "One-time code");
         body.appendChild(input);
         const err = el("p", "otp-err");
@@ -5490,7 +5490,7 @@ function otpModal(initialCode, method, opts) {
         document.documentElement.style.overflow = "hidden";
         input.focus();
 
-        input.oninput = () => { input.value = input.value.replace(/\D/g, "").slice(0, 6); err.textContent = ""; };
+        input.oninput = () => { input.value = input.value.replace(/\D/g, "").slice(0, emailMode ? 10 : 6); err.textContent = ""; };
 
         let done = false, busy = false;
         const close = answer => {
@@ -5507,7 +5507,7 @@ function otpModal(initialCode, method, opts) {
         const submit = async () => {
             if (busy) return;
             const v = input.value.trim();
-            if (v.length !== 6) { err.textContent = emailMode ? "Enter the 6-digit code from your email." : "Enter the 6-digit code shown above."; input.focus(); return; }
+            if (emailMode ? (v.length < 6) : (v.length !== 6)) { err.textContent = emailMode ? "Enter the full code from your email." : "Enter the 6-digit code shown above."; input.focus(); return; }
             if (emailMode) {
                 busy = true; ok.disabled = true; cancel.disabled = true; err.textContent = "Verifying…";
                 const token = await opts.verify(v);
