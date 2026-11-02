@@ -2559,14 +2559,34 @@ async function doLogin(event) {
 
 async function doRegister(event) {
     event.preventDefault();
+    const regEmail = $("regEmail").value.trim();
+
+    // Verify the sign-up email first: send a code to it, then confirm the code.
+    message("authMessage", "Sending a verification code to your email...");
+    try {
+        await supaSendOtp(regEmail);
+    } catch (e) {
+        message("authMessage", "Couldn't send a code to that email. Please check it and try again.", true);
+        return;
+    }
+    const sbToken = await otpModal(null, null, {
+        email: regEmail,
+        verify: code => supaVerifyOtp(regEmail, code),
+        titleWord: "Verify", titleSpan: "Email",
+        subtitle: "Enter the code we emailed to finish creating your account.",
+        okLabel: "Verify & Create"
+    });
+    if (!sbToken) { message("authMessage", "Email verification cancelled — your account was not created."); return; }
+
     message("authMessage", "Creating your account...");
     try {
         const result = await api("POST", "/api/auth/register", {
             first_name: $("regFirst").value, last_name: $("regLast").value,
-            email: $("regEmail").value, password: $("regPassword").value.replace(/\s/g, ""), phone: $("regPhone").value,
+            email: regEmail, password: $("regPassword").value.replace(/\s/g, ""), phone: $("regPhone").value,
             street: $("regStreet").value, barangay: $("regBarangay").value, city: $("regCity").value,
             captcha_token: captchaTokens.register,
-            captcha_answer: $("regCaptchaInput").value.trim()
+            captcha_answer: $("regCaptchaInput").value.trim(),
+            sb_access_token: sbToken
         });
         $("regPassword").value = "";
         await finishLogin(result);
@@ -5435,12 +5455,12 @@ function otpModal(initialCode, method, opts) {
 
         const head = el("div", "co-head");
         head.appendChild(el("div", "co-icon", isWallet ? "📱" : "🔐"));
-        const h = el("h3", null, isWallet ? (walletName + " ") : "Verify ");
+        const h = el("h3", null, isWallet ? (walletName + " ") : ((opts.titleWord || "Verify") + " "));
         h.id = "otpTitle";
-        h.appendChild(el("span", null, isWallet ? "Payment" : "Order"));
+        h.appendChild(el("span", null, isWallet ? "Payment" : (opts.titleSpan || "Order")));
         head.append(h, el("p", null, isWallet
             ? ("Authorize your " + walletName + " payment to place the order.")
-            : "Enter the one-time code to place your order."));
+            : (opts.subtitle || "Enter the one-time code to place your order.")));
 
         const body = el("div", "co-body");
         if (isWallet) {
@@ -5480,7 +5500,7 @@ function otpModal(initialCode, method, opts) {
 
         const actions = el("div", "co-actions");
         const cancel = el("button", "co-cancel", "Cancel");
-        const ok = el("button", "co-ok", isWallet ? ("Pay " + money(amt)) : "Confirm Order");
+        const ok = el("button", "co-ok", isWallet ? ("Pay " + money(amt)) : (opts.okLabel || "Confirm Order"));
         cancel.type = ok.type = "button";
         actions.append(cancel, ok);
 
