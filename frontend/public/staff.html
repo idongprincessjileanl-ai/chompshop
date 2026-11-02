@@ -116,7 +116,8 @@ nav {
     color: #fff;
     text-decoration: none;
 }
-.brand img { height: 40px; width: auto; background: #fff; border-radius: 8px; padding: 2px; }
+.brand img { height: 42px; width: auto; background: none; padding: 0; border-radius: 0; filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.45)); transition: transform 0.4s; }
+.brand:hover img { transform: rotate(-8deg) scale(1.08); }
 .brand .gold { color: var(--gold-light); }
 
 .nav-links { display: flex; flex-wrap: wrap; gap: 22px; align-items: center; }
@@ -926,6 +927,7 @@ pre { max-height: 480px; }
 .captcha-img-wrap { margin: 6px 0 8px; }
 .captcha-img { display: block; width: 230px; max-width: 100%; height: 80px; border: 1px solid var(--line); border-radius: 10px; background: #f4f5f8; user-select: none; -webkit-user-drag: none; }
 .captcha-img.loading { opacity: 0.45; }
+:root[data-theme="dark"] .captcha-img { background: #141f33; border-color: var(--line); }
 /* Show / hide password (eye icon) */
 .pw-wrap { position: relative; display: block; margin: 6px 0 20px; }
 .pw-wrap input { width: 100%; padding-right: 46px; margin: 0; }
@@ -975,7 +977,7 @@ pre { max-height: 480px; }
 <nav>
     <div class="nav-left">
     <button class="theme-btn" id="themeBtn" type="button" aria-label="Toggle dark mode" title="Toggle dark / light mode" onclick="toggleTheme()">🌙</button>
-    <a class="brand" href="index.html"><img src="logo.jpg" alt="" onerror="if(!this.dataset.retry){this.dataset.retry=1;this.src='images/withbackground.jpg'}else{this.remove()}">Chomp <span class="gold">Shop</span></a>
+    <a class="brand" href="index.html"><img src="logo-chip.png" alt="" onerror="if(!this.dataset.retry){this.dataset.retry=1;this.src='images/withbackground.jpg'}else{this.remove()}">Chomp <span class="gold">Shop</span></a>
     </div>
     <div class="nav-links">
         <span id="whoAmI" class="who hidden"></span>
@@ -1349,6 +1351,8 @@ function togglePw(id, btn) {
     try { inp.focus({ preventScroll: true }); } catch { inp.focus(); }
 }
 
+// True when the page is in dark mode, so the captcha image is requested in matching colours.
+function isDarkMode() { return document.documentElement.getAttribute("data-theme") === "dark"; }
 let staffCaptchaToken = null;
 async function loadStaffCaptcha() {
     const imgEl = $("stCaptchaImg"), inp = $("stCaptchaInput");
@@ -1357,7 +1361,7 @@ async function loadStaffCaptcha() {
     try {
         const c = await api("GET", "/api/captcha");
         staffCaptchaToken = c.token;
-        if (imgEl) { imgEl.src = c.image + "?t=" + Date.now(); imgEl.classList.remove("loading"); }
+        if (imgEl) { imgEl.src = c.image + "?t=" + Date.now() + (isDarkMode() ? "&theme=dark" : ""); imgEl.classList.remove("loading"); }
     } catch {
         staffCaptchaToken = null;
         if (imgEl) { imgEl.classList.remove("loading"); imgEl.alt = "Couldn't load — tap ↻"; }
@@ -2114,7 +2118,7 @@ if (auth) showStaff();
 
 // ---------- Dark / light theme ----------
 function applyThemeIcon(){var b=document.getElementById("themeBtn");if(!b)return;var d=document.documentElement.getAttribute("data-theme")==="dark";b.textContent=d?"☀️":"🌙";b.setAttribute("aria-label",d?"Switch to light mode":"Switch to dark mode");}
-function toggleTheme(){var c=document.documentElement.getAttribute("data-theme")==="dark"?"dark":"light";var n=c==="dark"?"light":"dark";document.documentElement.setAttribute("data-theme",n);try{localStorage.setItem("chomp-theme",n);}catch(e){}applyThemeIcon();}
+function toggleTheme(){var c=document.documentElement.getAttribute("data-theme")==="dark"?"dark":"light";var n=c==="dark"?"light":"dark";document.documentElement.setAttribute("data-theme",n);try{localStorage.setItem("chomp-theme",n);}catch(e){}applyThemeIcon();try{var ci=document.getElementById("stCaptchaImg");if(typeof loadStaffCaptcha==="function"&&ci&&ci.offsetParent!==null)loadStaffCaptcha();}catch(e){}}
 applyThemeIcon();
 
 loadStaffCaptcha();
