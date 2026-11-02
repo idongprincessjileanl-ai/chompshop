@@ -418,6 +418,25 @@ app.post('/api/auth/register', registerLimiter, wrap(async (req, res) => {
   // Normalise the phone to 11 digits (09XXXXXXXXX) before saving
   data.phone = normalisePHMobile(data.phone);
 
+  // Verify the sign-up email via Supabase email OTP: the page emails a code to this address
+  // and confirms it, then sends the Supabase access token here so we re-check it server-side.
+  {
+    const SB_URL = process.env.SUPABASE_URL || 'https://yyssndxeibcjlztcebyg.supabase.co';
+    const SB_ANON = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5c3NuZHhlaWJjamx6dGNlYnlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIzMzQzNDgsImV4cCI6MjEwNzkxMDM0OH0.8AV4kjMqCY6vYHJYnSUmlEpMvEZ5ZQyfdq9KaSkJSVk';
+    const sbToken = String(b.sb_access_token || '').trim();
+    if (!sbToken) return res.status(400).json({ error: 'Please verify the code sent to your email first.', code: 'OTP_REQUIRED' });
+    try {
+      const r = await fetch(SB_URL + '/auth/v1/user', { headers: { Authorization: 'Bearer ' + sbToken, apikey: SB_ANON } });
+      if (!r.ok) return res.status(400).json({ error: 'Email code not verified. Please try again.', code: 'OTP_FAILED' });
+      const sbUser = await r.json();
+      const sbEmail = String(sbUser?.email || '').toLowerCase();
+      if (!sbEmail || sbEmail !== data.email) return res.status(400).json({ error: 'The verified email must match the email you are signing up with.', code: 'OTP_MISMATCH' });
+    } catch (err) {
+      log('warn', 'supabase register otp verify failed', { err: err.message });
+      return res.status(400).json({ error: 'Could not verify your email right now. Please try again.', code: 'OTP_ERROR' });
+    }
+  }
+
   const hash = await bcrypt.hash(password, 10);
   const conn = await staffPool.getConnection();
   let userId;
