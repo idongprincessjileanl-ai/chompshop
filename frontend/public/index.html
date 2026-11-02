@@ -1299,6 +1299,9 @@ footer img { background: none; padding: 0; height: 64px; filter: drop-shadow(0 6
 .otp-err { min-height: 18px; margin: 0 0 8px; color: var(--red); font-size: 13px; text-align: center; }
 .otp-resend { display: block; margin: 0 auto 2px; background: transparent; border: none; color: var(--blue); font-weight: 600; font-size: 13px; cursor: pointer; box-shadow: none; padding: 4px; }
 .otp-resend:hover { text-decoration: underline; }
+.otp-pay { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; margin: 0 0 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; font-size: 14px; color: var(--muted); }
+.otp-pay b { font: 800 20px var(--display); color: var(--navy); }
+.co-card.pay-card .co-icon { background: #eaf4ff; }
 /* ===== Vouchers ===== */
 .voucher-row select { margin: 0; padding: 7px 10px; font-size: 13px; width: auto; max-width: 62%; border-radius: 8px; }
 .voucher-hint { margin: 2px 0 6px; font-size: 12px; color: var(--green); font-weight: 600; min-height: 14px; }
@@ -3180,7 +3183,7 @@ async function checkout() {
         message("cartMessage", error.message, true);
         return;
     }
-    const typedOtp = await otpModal(otpInfo.code);
+    const typedOtp = await otpModal(otpInfo.code, $("paymentMethod").value);
     if (typedOtp === null) return; // cancelled
 
     try {
@@ -5384,27 +5387,39 @@ function confirmOrderModal() {
 }
 
 // ---------- Order OTP (one-time code) ----------
-function otpModal(initialCode) {
+function otpModal(initialCode, method) {
     return new Promise(resolve => {
         let shownCode = initialCode;
+        const isWallet = method === "GCASH" || method === "MAYA";
+        const walletName = method === "MAYA" ? "Maya" : "GCash";
+        const subt = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+        const vch = appliedVoucher ? voucherByCode(appliedVoucher) : null;
+        const amt = Math.max(0, subt - jsDiscount(vch, subt));
         const overlay = el("div", "co-overlay");
         overlay.setAttribute("role", "dialog");
         overlay.setAttribute("aria-modal", "true");
         overlay.setAttribute("aria-labelledby", "otpTitle");
-        const card = el("div", "co-card");
+        const card = el("div", "co-card" + (isWallet ? " pay-card" : ""));
 
         const head = el("div", "co-head");
-        head.appendChild(el("div", "co-icon", "🔐"));
-        const h = el("h3", null, "Verify ");
+        head.appendChild(el("div", "co-icon", isWallet ? "📱" : "🔐"));
+        const h = el("h3", null, isWallet ? (walletName + " ") : "Verify ");
         h.id = "otpTitle";
-        h.appendChild(el("span", null, "Order"));
-        head.append(h, el("p", null, "Enter the one-time code to place your order."));
+        h.appendChild(el("span", null, isWallet ? "Payment" : "Order"));
+        head.append(h, el("p", null, isWallet
+            ? ("Authorize your " + walletName + " payment to place the order.")
+            : "Enter the one-time code to place your order."));
 
         const body = el("div", "co-body");
-        body.appendChild(el("p", "otp-demo-note", "Demo mode — your code is shown below:"));
+        if (isWallet) {
+            const pay = el("div", "otp-pay");
+            pay.append(el("span", null, "Amount to pay via " + walletName), el("b", null, money(amt)));
+            body.appendChild(pay);
+        }
+        body.appendChild(el("p", "otp-demo-note", isWallet ? ("Demo " + walletName + " — your authorization code:") : "Demo mode — your code is shown below:"));
         const codeBox = el("div", "otp-code", shownCode);
         body.appendChild(codeBox);
-        const label = el("label", "otp-label", "Type the code to confirm");
+        const label = el("label", "otp-label", isWallet ? ("Enter your " + walletName + " code") : "Type the code to confirm");
         label.setAttribute("for", "otpField");
         body.appendChild(label);
         const input = el("input", "otp-input");
@@ -5424,7 +5439,7 @@ function otpModal(initialCode) {
 
         const actions = el("div", "co-actions");
         const cancel = el("button", "co-cancel", "Cancel");
-        const ok = el("button", "co-ok", "Confirm Order");
+        const ok = el("button", "co-ok", isWallet ? ("Pay " + money(amt)) : "Confirm Order");
         cancel.type = ok.type = "button";
         actions.append(cancel, ok);
 
