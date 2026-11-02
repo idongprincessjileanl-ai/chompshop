@@ -788,14 +788,24 @@ footer a:hover { text-decoration: underline; }
 .login input { text-align: center; font-size: 22px; letter-spacing: 0.4em; }
 
 .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin: 10px 0 20px; }
-.tabs { display: flex; flex-wrap: wrap; gap: 8px; }
-.tabs button { background: transparent; color: var(--navy); margin: 0; }
-.tabs button:hover { color: var(--navy-deep); }
-.tabs button.active, .tabs button.active:hover { background: var(--brand); border-color: var(--navy); color: #fff; }
-.tabs .count {
-    display: inline-block; min-width: 22px; margin-left: 6px; padding: 0 6px; border-radius: 999px;
-    background: var(--gold); color: var(--navy-deep); font-size: 11px;
+/* Organized, minimalist tabs: two segmented groups (order queue · tools) */
+.tab-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.tab-group { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 14px; background: rgba(127,140,170,0.12); }
+.tab-group button {
+    margin: 0; padding: 8px 13px; border: 0; border-radius: 10px; background: transparent; color: var(--muted);
+    font: 700 12.5px var(--sans); letter-spacing: 0; text-transform: none; cursor: pointer; box-shadow: none;
+    display: inline-flex; align-items: center; gap: 7px; transition: background .16s ease, color .16s ease;
 }
+.tab-group button:hover { color: var(--text); }
+.tab-group button.active, .tab-group button.active:hover {
+    background: var(--card); color: var(--navy); box-shadow: 0 2px 6px rgba(10,22,49,0.16); border: 0;
+}
+.tab-group .count {
+    display: inline-block; min-width: 20px; margin: 0; padding: 1px 7px; border-radius: 999px; text-align: center;
+    background: rgba(127,140,170,0.30); color: inherit; font: 800 11px var(--sans);
+}
+.tab-group button.active .count { background: rgba(201,162,63,0.22); color: var(--gold-dark); }
+:root[data-theme="dark"] .tab-group button.active .count { color: var(--gold-light); }
 .rider-filter { display: flex; align-items: center; gap: 8px; }
 .rider-filter label { margin: 0; white-space: nowrap; }
 .rider-filter select { width: auto; min-width: 200px; margin: 0; }
@@ -915,7 +925,7 @@ footer a:hover { text-decoration: underline; }
 pre { max-height: 480px; }
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 18px; }
 .kpi { padding: 16px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
-.kpi b { display: block; font: 800 clamp(16px, 2.2vw, 24px) var(--display); color: var(--navy); overflow-wrap: anywhere; }
+.kpi b { display: block; font: 800 clamp(16px, 1.9vw, 21px) var(--display); color: var(--navy); overflow-wrap: normal; }
 .kpi small { color: var(--muted); }
 .kpi.bad b { color: var(--red); }
 .demo-accounts { margin-top: 16px; text-align: left; font-size: 13px; color: var(--muted); }
@@ -943,12 +953,12 @@ pre { max-height: 480px; }
 :root[data-theme="dark"] .pw-toggle[aria-pressed="true"] { color: var(--gold-light); }
 
 /* Dashboard */
-.dash-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin: 14px 0 8px; }
-.kpi { padding: 16px; border-radius: 14px; background: var(--bg); border: 1px solid var(--line); border-left: 4px solid var(--navy); min-width: 0; overflow: hidden; }
+.dash-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 12px; margin: 14px 0 8px; }
+.kpi { padding: 16px 18px; border-radius: 14px; background: var(--bg); border: 1px solid var(--line); border-left: 3px solid var(--navy); min-width: 0; overflow: hidden; }
 .kpi-green { border-left-color: var(--green); }
 .kpi-gold { border-left-color: var(--gold); }
 .kpi-red { border-left-color: var(--red); }
-.kpi-val { font: 800 clamp(16px, 2.2vw, 24px) var(--display); color: var(--navy); line-height: 1.15; overflow-wrap: anywhere; }
+.kpi-val { font: 800 clamp(16px, 1.9vw, 21px) var(--display); color: var(--navy); line-height: 1.12; overflow-wrap: normal; }
 .kpi-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 5px; }
 .dash-h { margin: 24px 0 12px; font: 800 15px var(--display); color: var(--navy); text-transform: uppercase; letter-spacing: 0.04em; }
 .dash-top { display: grid; gap: 10px; }
@@ -1025,7 +1035,10 @@ pre { max-height: 480px; }
     </div>
 
     <div class="toolbar">
-        <div class="tabs" id="tabs"></div>
+        <div class="tab-bar">
+            <div class="tab-group" id="orderTabs"></div>
+            <div class="tab-group tool-tabs" id="toolTabs"></div>
+        </div>
         <div class="rider-filter" id="riderFilterBox">
             <label for="riderFilter">Rider</label>
             <select id="riderFilter" onchange="loadQueue()">
@@ -1414,16 +1427,19 @@ function visibleTabs() {
 }
 
 function renderTabs() {
-    const tabs = $("tabs");
-    tabs.replaceChildren();
+    const orderBox = $("orderTabs"), toolBox = $("toolTabs");
+    orderBox.replaceChildren();
+    toolBox.replaceChildren();
+    const orderKeys = ORDER_TABS.map(t => t.key);
     visibleTabs().forEach(t => {
         const label = isRider() && t.riderLabel ? t.riderLabel : t.label;
         const b = el("button", t.key === currentTab ? "active" : "", label);
         if (lastCounts[t.key] !== undefined) b.appendChild(el("span", "count", String(lastCounts[t.key])));
         if (t.key === "RIDERS" && !isRider()) b.appendChild(el("span", "count", String(riders.length)));
         b.onclick = () => openTab(t.key);
-        tabs.appendChild(b);
+        (orderKeys.includes(t.key) ? orderBox : toolBox).appendChild(b);
     });
+    toolBox.style.display = toolBox.children.length ? "" : "none";
 }
 
 function showPanel(id) {
