@@ -99,12 +99,12 @@ app.use(helmet({
     useDefaults: false,
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
       scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
       imgSrc: ["'self'", 'data:', 'blob:'],
-      connectSrc: ["'self'"],
+      connectSrc: ["'self'", 'https://yyssndxeibcjlztcebyg.supabase.co'],
       objectSrc: ["'none'"],
       frameAncestors: ["'none'"],
       baseUri: ["'self'"],
@@ -651,14 +651,24 @@ app.post('/api/checkout', checkoutLimiter, requireRole('Customer'), wrap(async (
     return res.status(400).json({ error: 'Payment method must be GCASH, MAYA, CARD or COD' });
   if (!items.length) return res.status(400).json({ error: 'Cart is empty' });
 
-  // One-time code check (the page gets a code from /api/checkout/otp first)
-  const otpRec = orderOtps.get(req.user.id);
-  const givenOtp = String(body.otp || '').trim();
-  if (!givenOtp) return res.status(400).json({ error: 'Enter the order code to confirm.', code: 'OTP_REQUIRED' });
-  if (!otpRec || otpRec.exp < Date.now()) { orderOtps.delete(req.user.id); return res.status(400).json({ error: 'Your code expired. Tap "Place Order" again to get a new one.', code: 'OTP_EXPIRED' }); }
-  if (otpRec.attempts >= 5) { orderOtps.delete(req.user.id); return res.status(400).json({ error: 'Too many wrong codes. Tap "Place Order" again.', code: 'OTP_LOCKED' }); }
-  if (givenOtp !== otpRec.code) { otpRec.attempts++; return res.status(400).json({ error: 'Wrong code. Please check and try again.', code: 'OTP_FAILED' }); }
-  orderOtps.delete(req.user.id); // one-time use
+  // Email OTP via Supabase: the page emails a 6-digit code to the customer, confirms it with
+  // Supabase, then sends the Supabase access token here so we double-check the email server-side.
+  const SB_URL = process.env.SUPABASE_URL || 'https://yyssndxeibcjlztcebyg.supabase.co';
+  const SB_ANON = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5c3NuZHhlaWJjamx6dGNlYnlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIzMzQzNDgsImV4cCI6MjEwNzkxMDM0OH0.8AV4kjMqCY6vYHJYnSUmlEpMvEZ5ZQyfdq9KaSkJSVk';
+  const sbToken = String(body.sb_access_token || '').trim();
+  if (!sbToken) return res.status(400).json({ error: 'Please verify the code sent to your email first.', code: 'OTP_REQUIRED' });
+  try {
+    const r = await fetch(SB_URL + '/auth/v1/user', { headers: { Authorization: 'Bearer ' + sbToken, apikey: SB_ANON } });
+    if (!r.ok) return res.status(400).json({ error: 'Email code not verified. Please try again.', code: 'OTP_FAILED' });
+    const sbUser = await r.json();
+    const sbEmail = String(sbUser?.email || '').toLowerCase();
+    const [urows] = await sys('SELECT email FROM users WHERE user_id = ?', [req.user.id]);
+    const myEmail = String(urows[0]?.email || '').toLowerCase();
+    if (!sbEmail || !myEmail || sbEmail !== myEmail) return res.status(400).json({ error: 'The verified email must match your account email.', code: 'OTP_MISMATCH' });
+  } catch (err) {
+    log('warn', 'supabase otp verify failed', { err: err.message });
+    return res.status(400).json({ error: 'Could not verify your email right now. Please try again.', code: 'OTP_ERROR' });
+  }
 
   const [addr] = await q(req,
     'SELECT address_id FROM rls_customer_addresses WHERE user_id = ? ORDER BY is_default DESC, address_id LIMIT 1',
