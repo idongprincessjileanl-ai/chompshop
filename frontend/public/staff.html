@@ -778,11 +778,13 @@ footer a:hover { text-decoration: underline; }
 
 /* ---------- Staff page ---------- */
 .login {
-    max-width: 380px; margin: 70px auto; padding: 30px; background: var(--card);
-    border: 1px solid var(--line); border-top: 4px solid var(--gold); border-radius: 16px; text-align: center;
+    max-width: 400px; margin: 60px auto; padding: 38px 32px 32px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 22px; box-shadow: 0 16px 48px rgba(10, 22, 49, 0.12); text-align: center;
 }
-.login img { height: 84px; margin-bottom: 8px; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.28)); }
-.login h2::after { margin: 10px auto 0; }
+.login img { height: 86px; margin-bottom: 10px; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.28)); }
+.login h2 { font: 800 25px/1.15 var(--display); letter-spacing: 0.045em; }
+.login h2::after { width: 46px; height: 3px; margin: 14px auto 2px; background: var(--gold); }
+.login .subtitle { font-size: 14px; margin: 10px 0 26px; color: var(--muted); }
 .login input { text-align: center; font-size: 22px; letter-spacing: 0.4em; }
 
 .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin: 10px 0 20px; }
