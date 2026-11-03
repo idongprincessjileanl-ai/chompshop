@@ -5663,9 +5663,25 @@ function podWrapText(ctx, text, x, y, maxW, lh) {
     return yy + lh;
 }
 
-function podDataUrl(order, item) {
+function podLoadImg(src) {
+    return new Promise(res => {
+        if (!src) { res(null); return; }
+        const im = new Image();
+        im.onload = () => res(im);
+        im.onerror = () => res(null);
+        im.src = src;
+    });
+}
+function podDrawContain(x, img, bx, by, bw, bh) {
+    const ar = img.width / img.height, br = bw / bh;
+    let dw, dh;
+    if (ar > br) { dw = bw; dh = bw / ar; } else { dh = bh; dw = bh * ar; }
+    x.drawImage(img, bx + (bw - dw) / 2, by + (bh - dh) / 2, dw, dh);
+}
+
+async function podDataUrl(order, item) {
     const dl = order.delivery || {};
-    const W = 760, H = 800, dpr = 2;
+    const W = 760, H = 850, dpr = 2;
     const c = document.createElement("canvas");
     c.width = W * dpr; c.height = H * dpr;
     const x = c.getContext("2d");
@@ -5693,30 +5709,30 @@ function podDataUrl(order, item) {
     x.fillText("Order #" + String(order.order_id).padStart(6, "0"), W - M - 30, M + 78);
     x.textAlign = "left";
 
-    // DELIVERED stamp (rotated)
-    x.save();
-    x.translate(W - M - 128, M + 212);
-    x.rotate(-12 * Math.PI / 180);
-    x.strokeStyle = "#2e7d55"; x.lineWidth = 3;
-    x.beginPath(); x.roundRect(-96, -34, 192, 68, 12); x.stroke();
-    x.fillStyle = "#2e7d55"; x.font = "800 29px Montserrat, Arial"; x.textAlign = "center";
-    x.fillText("DELIVERED", 0, 2);
-    x.font = "600 11px Inter, Arial";
-    x.fillText(formatDate(dl.delivered_at || order.order_date), 0, 22);
-    x.restore(); x.textAlign = "left";
+    // Top row: product photo (left) + item details (right)
+    const topY = M + 122 + 28, isz = 160, ix = px, iy = topY;
+    x.save(); x.beginPath(); x.roundRect(ix, iy, isz, isz, 14);
+    x.fillStyle = "#f4f6fa"; x.fill(); x.strokeStyle = "#e2e6ef"; x.lineWidth = 1; x.stroke(); x.clip();
+    const img = await podLoadImg(item.image_url);
+    if (img) { podDrawContain(x, img, ix + 10, iy + 10, isz - 20, isz - 20); }
+    else { x.fillStyle = "#9aa7c4"; x.font = "600 13px Inter, Arial"; x.textAlign = "center"; x.fillText("No photo", ix + isz / 2, iy + isz / 2 + 4); x.textAlign = "left"; }
+    x.restore();
 
-    let y = M + 122 + 52;
+    const tx = ix + isz + 24, tcw = innerW - isz - 24;
+    let ty = iy + 6;
+    x.fillStyle = "#6c7590"; x.font = "700 11px Inter, Arial"; x.fillText("ITEM DELIVERED", tx, ty); ty += 22;
+    x.fillStyle = "#13254a"; x.font = "800 20px Montserrat, Arial"; ty = podWrapText(x, item.name, tx, ty, tcw, 26); ty += 4;
+    x.fillStyle = "#2b3550"; x.font = "500 14px Inter, Arial";
+    ty = podWrapText(x, "SKU: " + (item.sku || "—"), tx, ty, tcw, 20);
+    ty = podWrapText(x, "Qty " + item.quantity + "  ·  " + money(item.price) + " each  ·  " + money(item.subtotal), tx, ty, tcw, 20);
+
+    let y = Math.max(iy + isz, ty) + 24;
     const label = (t) => { x.fillStyle = "#6c7590"; x.font = "700 11px Inter, Arial"; x.fillText(String(t).toUpperCase(), px, y); y += 20; };
     const line = (t, max) => { x.fillStyle = "#2b3550"; x.font = "500 14px Inter, Arial"; y = podWrapText(x, t, px, y, max || innerW, 20); };
-    const strong = (t, max) => { x.fillStyle = "#13254a"; x.font = "700 16px Inter, Arial"; y = podWrapText(x, t, px, y, max || innerW, 22); };
+    const strong = (t) => { x.fillStyle = "#13254a"; x.font = "700 16px Inter, Arial"; y = podWrapText(x, t, px, y, innerW, 22); };
     const rule = () => { y += 10; x.strokeStyle = "#e2e6ef"; x.beginPath(); x.moveTo(px, y); x.lineTo(px + innerW, y); x.stroke(); y += 22; };
 
-    label("Item delivered");
-    x.fillStyle = "#13254a"; x.font = "800 20px Montserrat, Arial"; y = podWrapText(x, item.name, px, y, innerW - 150, 26); y += 2;
-    line("SKU: " + (item.sku || "—"));
-    line("Quantity: " + item.quantity + "   ·   Unit price: " + money(item.price) + "   ·   Amount: " + money(item.subtotal));
     rule();
-
     label("Delivered to");
     strong(dl.recipient_name || order.customer);
     line(order.address || "—");
@@ -5733,6 +5749,18 @@ function podDataUrl(order, item) {
     label("Payment");
     line((PAYMENT_NAMES[order.payment_method] || order.payment_method || "—") + "   ·   " + (order.payment_status || "—"));
 
+    // DELIVERED stamp in lower-right whitespace
+    x.save();
+    x.translate(W - M - 150, H - 150);
+    x.rotate(-12 * Math.PI / 180);
+    x.strokeStyle = "#2e7d55"; x.lineWidth = 3;
+    x.beginPath(); x.roundRect(-96, -34, 192, 68, 12); x.stroke();
+    x.fillStyle = "#2e7d55"; x.font = "800 29px Montserrat, Arial"; x.textAlign = "center";
+    x.fillText("DELIVERED", 0, 2);
+    x.font = "600 11px Inter, Arial";
+    x.fillText(formatDate(dl.delivered_at || order.order_date), 0, 22);
+    x.restore(); x.textAlign = "left";
+
     // signature line + footer
     const sy = H - M - 86;
     x.strokeStyle = "#c9c9c9"; x.lineWidth = 1; x.beginPath(); x.moveTo(px, sy); x.lineTo(px + 240, sy); x.stroke();
@@ -5745,9 +5773,9 @@ function podDataUrl(order, item) {
     return c.toDataURL("image/png");
 }
 
-function downloadItemPod(order, item) {
+async function downloadItemPod(order, item) {
     try {
-        const url = podDataUrl(order, item);
+        const url = await podDataUrl(order, item);
         const a = document.createElement("a");
         a.href = url;
         a.download = "ChompShop-POD-" + String(order.order_id).padStart(6, "0") + "-" + item.product_id + ".png";
@@ -5755,15 +5783,15 @@ function downloadItemPod(order, item) {
     } catch (e) { showToast("Could not create the proof of delivery.", false); }
 }
 
-function viewItemPod(order, item) {
+async function viewItemPod(order, item) {
+    const w = window.open("");
     try {
-        const url = podDataUrl(order, item);
-        const w = window.open("");
+        const url = await podDataUrl(order, item);
         if (w && w.document) {
             w.document.write('<title>Proof of Delivery</title><body style="margin:0;background:#1a2033;display:grid;place-items:center;min-height:100vh;padding:16px"><img src="' + url + '" alt="Proof of delivery" style="max-width:100%;height:auto;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.5)"></body>');
             w.document.close();
         } else { downloadItemPod(order, item); }
-    } catch (e) { showToast("Could not open the proof of delivery.", false); }
+    } catch (e) { if (w) { try { w.close(); } catch (_) {} } showToast("Could not open the proof of delivery.", false); }
 }
 
 function podSection(order) {
