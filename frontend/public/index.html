@@ -5440,7 +5440,7 @@ function confirmOrderModal() {
         const body = el("div", "co-body");
         body.appendChild(el("span", "co-label", "Items (" + count + ")"));
         const list = el("ul", "co-items");
-        cart.forEach(i => {
+        _sel.forEach(i => {
             const li = el("li");
             li.append(el("span", "q", "×" + i.quantity), el("span", "n", i.name), el("span", "a", money(i.price * i.quantity)));
             list.appendChild(li);
