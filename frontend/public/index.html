@@ -898,6 +898,14 @@ footer a:hover { text-decoration: underline; }
 .pod-item-btns { display: flex; gap: 8px; }
 .pod-btn { margin: 0; padding: 9px 16px; border-radius: 9px; border: 0; font: 700 13px var(--sans); cursor: pointer; background: linear-gradient(135deg, #f0d47e, #c9a23f); color: #13254a; }
 .pod-btn.ghost { background: transparent; border: 1.5px solid var(--line); color: var(--navy); }
+/* POD image viewer (lightbox) */
+.pod-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 24px; background: rgba(10,22,49,0.62); backdrop-filter: blur(4px); animation: podFade 0.15s ease; }
+@keyframes podFade { from { opacity: 0; } to { opacity: 1; } }
+.pod-viewer { display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 100%; }
+.pod-viewer-img { max-width: min(430px, 90vw); max-height: 76vh; width: auto; height: auto; object-fit: contain; border-radius: 14px; box-shadow: 0 24px 70px rgba(0,0,0,0.5); background: #fff; }
+.pod-close { position: fixed; top: 16px; right: 16px; width: 42px; height: 42px; border-radius: 50%; border: 0; background: #fff; color: #13254a; font: 700 18px var(--sans); cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.35); display: grid; place-items: center; z-index: 1001; }
+.pod-close:hover { background: #f0f2f7; }
+.pod-viewer-bar { display: flex; gap: 10px; }
 
 @media (max-width: 560px) {
     .receipt-meta { grid-template-columns: 1fr; }
@@ -5784,14 +5792,43 @@ async function downloadItemPod(order, item) {
 }
 
 async function viewItemPod(order, item) {
-    const w = window.open("");
-    try {
-        const url = await podDataUrl(order, item);
-        if (w && w.document) {
-            w.document.write('<title>Proof of Delivery</title><body style="margin:0;background:#1a2033;display:grid;place-items:center;min-height:100vh;padding:16px"><img src="' + url + '" alt="Proof of delivery" style="max-width:100%;height:auto;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.5)"></body>');
-            w.document.close();
-        } else { downloadItemPod(order, item); }
-    } catch (e) { if (w) { try { w.close(); } catch (_) {} } showToast("Could not open the proof of delivery.", false); }
+    let url;
+    try { url = await podDataUrl(order, item); }
+    catch (e) { showToast("Could not open the proof of delivery.", false); return; }
+
+    const overlay = el("div", "pod-overlay");
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-label", "Proof of delivery");
+
+    const close = el("button", "pod-close", "✕");
+    close.type = "button"; close.setAttribute("aria-label", "Close");
+
+    const img = document.createElement("img");
+    img.className = "pod-viewer-img";
+    img.src = url;
+    img.alt = "Proof of delivery for order #" + order.order_id;
+
+    const bar = el("div", "pod-viewer-bar");
+    const down = el("button", "pod-btn", "⤓ Download");
+    down.type = "button"; down.onclick = () => downloadItemPod(order, item);
+    bar.appendChild(down);
+
+    const stack = el("div", "pod-viewer");
+    stack.append(img, bar);
+    overlay.append(close, stack);
+    document.body.appendChild(overlay);
+    document.documentElement.style.overflow = "hidden";
+
+    const shut = () => {
+        overlay.remove();
+        document.documentElement.style.overflow = "";
+        document.removeEventListener("keydown", onKey);
+    };
+    const onKey = e => { if (e.key === "Escape") shut(); };
+    document.addEventListener("keydown", onKey);
+    close.onclick = shut;
+    overlay.addEventListener("click", e => { if (e.target === overlay) shut(); });
 }
 
 function podSection(order) {
