@@ -886,6 +886,18 @@ footer a:hover { text-decoration: underline; }
 .receipt-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 18px; }
 .receipt-actions select { width: auto; min-width: 150px; margin: 0; }
 .receipt-actions button { margin: 0; }
+/* Proof of Delivery (per item) */
+.pod-section { margin-top: 20px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 14px; background: rgba(19,37,74,0.03); }
+.pod-section h4 { margin: 0 0 4px; font: 800 14px var(--display); color: var(--navy); }
+.pod-sub { margin: 0 0 14px; font-size: 13px; color: var(--muted); }
+.pod-list { display: grid; gap: 10px; }
+.pod-item { display: flex; align-items: center; gap: 12px; justify-content: space-between; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); flex-wrap: wrap; }
+.pod-item-info { display: flex; flex-direction: column; min-width: 0; }
+.pod-item-info strong { font-size: 14px; color: var(--text); }
+.pod-item-info small { font-size: 12px; color: var(--muted); }
+.pod-item-btns { display: flex; gap: 8px; }
+.pod-btn { margin: 0; padding: 9px 16px; border-radius: 9px; border: 0; font: 700 13px var(--sans); cursor: pointer; background: linear-gradient(135deg, #f0d47e, #c9a23f); color: #13254a; }
+.pod-btn.ghost { background: transparent; border: 1.5px solid var(--line); color: var(--navy); }
 
 @media (max-width: 560px) {
     .receipt-meta { grid-template-columns: 1fr; }
@@ -3532,6 +3544,9 @@ function renderReceipt(order) {
     body.appendChild(el("p", "receipt-foot",
         "Thank you for shopping at Chomp Shop! Keep this receipt for your records."));
 
+    // Per-item proof of delivery (only after delivery)
+    if (order.status === "DELIVERED") body.appendChild(podSection(order));
+
     // Ratings and feedback (only after delivery)
     if (order.status === "DELIVERED") body.appendChild(feedbackSection(order));
 
@@ -5633,6 +5648,145 @@ function downloadQrReceipt(order) {
     document.body.appendChild(a);
     a.click();
     a.remove();
+}
+
+// ---------- Proof of Delivery (per-item slip image, generated on the device) ----------
+function podWrapText(ctx, text, x, y, maxW, lh) {
+    const words = String(text == null ? "" : text).split(/\s+/);
+    let line = "", yy = y;
+    for (const w of words) {
+        const test = line ? line + " " + w : w;
+        if (ctx.measureText(test).width > maxW && line) { ctx.fillText(line, x, yy); line = w; yy += lh; }
+        else line = test;
+    }
+    if (line) ctx.fillText(line, x, yy);
+    return yy + lh;
+}
+
+function podDataUrl(order, item) {
+    const dl = order.delivery || {};
+    const W = 760, H = 800, dpr = 2;
+    const c = document.createElement("canvas");
+    c.width = W * dpr; c.height = H * dpr;
+    const x = c.getContext("2d");
+    x.scale(dpr, dpr);
+
+    // page + white card
+    x.fillStyle = "#eef1f7"; x.fillRect(0, 0, W, H);
+    const M = 26, cw = W - M * 2, px = M + 30, innerW = cw - 60;
+    x.save(); x.beginPath(); x.roundRect(M, M, cw, H - M * 2, 20);
+    x.fillStyle = "#fff"; x.fill(); x.strokeStyle = "#e2e6ef"; x.lineWidth = 1; x.stroke(); x.restore();
+
+    // navy header band + gold divider
+    x.save(); x.beginPath(); x.roundRect(M, M, cw, 122, [20, 20, 0, 0]); x.clip();
+    const g = x.createLinearGradient(M, M, W - M, M + 122);
+    g.addColorStop(0, "#0a1631"); g.addColorStop(.6, "#13254a"); g.addColorStop(1, "#2e5689");
+    x.fillStyle = g; x.fillRect(M, M, cw, 122); x.restore();
+    x.fillStyle = "#c9a23f"; x.fillRect(M, M + 122, cw, 4);
+
+    x.fillStyle = "#fff"; x.font = "800 27px Montserrat, Arial";
+    x.fillText("CHOMP SHOP", px, M + 54);
+    x.fillStyle = "#e8c868"; x.font = "700 15px Inter, Arial";
+    x.fillText("PROOF OF DELIVERY", px, M + 84);
+    x.textAlign = "right"; x.fillStyle = "#c9d2e6"; x.font = "600 12px Inter, Arial";
+    x.fillText("POD-" + String(order.order_id).padStart(6, "0") + "-" + item.product_id, W - M - 30, M + 52);
+    x.fillText("Order #" + String(order.order_id).padStart(6, "0"), W - M - 30, M + 78);
+    x.textAlign = "left";
+
+    // DELIVERED stamp (rotated)
+    x.save();
+    x.translate(W - M - 128, M + 212);
+    x.rotate(-12 * Math.PI / 180);
+    x.strokeStyle = "#2e7d55"; x.lineWidth = 3;
+    x.beginPath(); x.roundRect(-96, -34, 192, 68, 12); x.stroke();
+    x.fillStyle = "#2e7d55"; x.font = "800 29px Montserrat, Arial"; x.textAlign = "center";
+    x.fillText("DELIVERED", 0, 2);
+    x.font = "600 11px Inter, Arial";
+    x.fillText(formatDate(dl.delivered_at || order.order_date), 0, 22);
+    x.restore(); x.textAlign = "left";
+
+    let y = M + 122 + 52;
+    const label = (t) => { x.fillStyle = "#6c7590"; x.font = "700 11px Inter, Arial"; x.fillText(String(t).toUpperCase(), px, y); y += 20; };
+    const line = (t, max) => { x.fillStyle = "#2b3550"; x.font = "500 14px Inter, Arial"; y = podWrapText(x, t, px, y, max || innerW, 20); };
+    const strong = (t, max) => { x.fillStyle = "#13254a"; x.font = "700 16px Inter, Arial"; y = podWrapText(x, t, px, y, max || innerW, 22); };
+    const rule = () => { y += 10; x.strokeStyle = "#e2e6ef"; x.beginPath(); x.moveTo(px, y); x.lineTo(px + innerW, y); x.stroke(); y += 22; };
+
+    label("Item delivered");
+    x.fillStyle = "#13254a"; x.font = "800 20px Montserrat, Arial"; y = podWrapText(x, item.name, px, y, innerW - 150, 26); y += 2;
+    line("SKU: " + (item.sku || "—"));
+    line("Quantity: " + item.quantity + "   ·   Unit price: " + money(item.price) + "   ·   Amount: " + money(item.subtotal));
+    rule();
+
+    label("Delivered to");
+    strong(dl.recipient_name || order.customer);
+    line(order.address || "—");
+    rule();
+
+    label("Delivered by (rider)");
+    strong("🛵 " + (dl.driver_name || "Assigned rider"));
+    line([dl.vehicle, dl.plate_no, dl.driver_phone].filter(Boolean).join("   ·   ") || "—");
+    rule();
+
+    label("Delivery date & time");
+    line(formatDate(dl.delivered_at || order.order_date));
+    y += 8;
+    label("Payment");
+    line((PAYMENT_NAMES[order.payment_method] || order.payment_method || "—") + "   ·   " + (order.payment_status || "—"));
+
+    // signature line + footer
+    const sy = H - M - 86;
+    x.strokeStyle = "#c9c9c9"; x.lineWidth = 1; x.beginPath(); x.moveTo(px, sy); x.lineTo(px + 240, sy); x.stroke();
+    x.fillStyle = "#6c7590"; x.font = "500 12px Inter, Arial";
+    x.fillText("Received / confirmed electronically", px, sy + 20);
+    x.textAlign = "center";
+    x.fillText("Chomp Shop · System-generated proof of delivery · Keep for your records.", W / 2, H - M - 26);
+    x.textAlign = "left";
+
+    return c.toDataURL("image/png");
+}
+
+function downloadItemPod(order, item) {
+    try {
+        const url = podDataUrl(order, item);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "ChompShop-POD-" + String(order.order_id).padStart(6, "0") + "-" + item.product_id + ".png";
+        document.body.appendChild(a); a.click(); a.remove();
+    } catch (e) { showToast("Could not create the proof of delivery.", false); }
+}
+
+function viewItemPod(order, item) {
+    try {
+        const url = podDataUrl(order, item);
+        const w = window.open("");
+        if (w && w.document) {
+            w.document.write('<title>Proof of Delivery</title><body style="margin:0;background:#1a2033;display:grid;place-items:center;min-height:100vh;padding:16px"><img src="' + url + '" alt="Proof of delivery" style="max-width:100%;height:auto;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.5)"></body>');
+            w.document.close();
+        } else { downloadItemPod(order, item); }
+    } catch (e) { showToast("Could not open the proof of delivery.", false); }
+}
+
+function podSection(order) {
+    const wrap = el("div", "pod-section no-print");
+    wrap.appendChild(el("h4", null, "📦 Proof of Delivery"));
+    wrap.appendChild(el("p", "pod-sub", "A delivery slip for each delivered item — tap to view or download."));
+    const list = el("div", "pod-list");
+    (order.items || []).forEach(item => {
+        const row = el("div", "pod-item");
+        const info = el("div", "pod-item-info");
+        info.append(el("strong", null, item.name), el("small", null, "Qty " + item.quantity + " · " + money(item.subtotal)));
+        row.appendChild(info);
+        const btns = el("div", "pod-item-btns");
+        const view = el("button", "pod-btn ghost", "View");
+        view.type = "button"; view.onclick = () => viewItemPod(order, item);
+        const down = el("button", "pod-btn", "Download");
+        down.type = "button"; down.onclick = () => downloadItemPod(order, item);
+        btns.append(view, down);
+        row.appendChild(btns);
+        list.appendChild(row);
+    });
+    wrap.appendChild(list);
+    return wrap;
 }
 
 // ---------- Log out confirmation ----------
