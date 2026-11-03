@@ -965,11 +965,11 @@ app.post('/api/staff/orders/:id/ship', staffOnly, wrap(async (req, res) => {
   res.json({ ...sets[0][0], driver_name: d[0].full_name });
 }));
 
-// Deliver: proof photo required. A rider can only deliver their own orders (also enforced by a DB trigger).
+// Deliver: proof photo is OPTIONAL (the app also generates a per-item proof-of-delivery slip).
+// A rider can only deliver their own orders (also enforced by a DB trigger).
 app.post('/api/staff/orders/:id/deliver', uploadLimiter, requireRole(...STAFF_ROLES, 'Rider'),
   uploadProof.single('proof'), wrap(async (req, res) => {
     const removeUpload = () => req.file && fs.unlink(req.file.path, () => {});
-    if (!req.file) return res.status(400).json({ error: 'Attach a photo as proof of delivery (max 8MB)' });
 
     const recipient = String(req.body?.recipient_name || '').trim().slice(0, 100);
     const notes = String(req.body?.notes || '').trim().slice(0, 255) || null;
@@ -988,11 +988,11 @@ app.post('/api/staff/orders/:id/deliver', uploadLimiter, requireRole(...STAFF_RO
       removeUpload();
       throw err;
     }
-    const url = '/uploads/proofs/' + req.file.filename;
+    const url = req.file ? '/uploads/proofs/' + req.file.filename : null;
     await q(req,
       'UPDATE deliveries SET delivered_at = NOW(), recipient_name = ?, proof_image_url = ?, notes = ? WHERE order_id = ?',
       [recipient, url, notes, req.params.id]);
-    audit(req, 'order_deliver', 'order', req.params.id, { proof: url });
+    audit(req, 'order_deliver', 'order', req.params.id, { proof: url || 'none' });
     res.json({ order_id: Number(req.params.id), status: 'DELIVERED', proof_image_url: url });
   }));
 
