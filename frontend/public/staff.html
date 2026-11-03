@@ -1029,7 +1029,7 @@ pre { max-height: 480px; }
     <div class="section-heading">
         <div>
             <h2 id="workTitle">Orders &amp; Deliveries</h2>
-            <p id="workSubtitle" class="subtitle">Confirm payments, assign riders, and upload proof of delivery. Customers see each step on their receipt.</p>
+            <p id="workSubtitle" class="subtitle">Confirm payments, assign riders, and mark orders delivered. A proof of delivery is generated for the customer automatically.</p>
         </div>
         <button onclick="refresh()">Refresh</button>
     </div>
@@ -1402,7 +1402,7 @@ async function showStaff() {
     if (isRider()) {
         currentTab = "SHIPPED";
         $("workTitle").textContent = "My Deliveries";
-        $("workSubtitle").textContent = "Deliver your assigned orders and upload a photo as proof. Customers see it on their receipt.";
+        $("workSubtitle").textContent = "Deliver your assigned orders. A photo is optional — a proof of delivery is generated for the customer automatically.";
         $("riderFilterBox").classList.add("hidden");
     } else {
         currentTab = "PENDING";
@@ -1808,7 +1808,7 @@ function deliverForm(o) {
     const id = "proof-" + o.order_id;
 
     const fileBox = el("div");
-    const fileLabel = el("label", null, "Proof of delivery photo");
+    const fileLabel = el("label", null, "Proof of delivery photo (optional)");
     fileLabel.htmlFor = id;
     const file = document.createElement("input");
     file.type = "file";
@@ -1883,28 +1883,24 @@ async function ship(order, driverId, button) {
 }
 
 async function deliver(order, file, name, notes, button) {
-    if (!file.files[0]) {
-        message("queueMessage", "Order #" + order.order_id + ": attach a photo as proof of delivery.", true);
-        file.focus();
-        return;
-    }
     if (!name.value.trim()) {
         message("queueMessage", "Order #" + order.order_id + ": enter who received the parcel.", true);
         name.focus();
         return;
     }
+    const hasPhoto = !!file.files[0];
     const form = new FormData();
-    form.append("proof", file.files[0]);
+    if (hasPhoto) form.append("proof", file.files[0]);
     form.append("recipient_name", name.value.trim());
     form.append("notes", notes.value.trim());
 
     button.disabled = true;
-    button.textContent = "Uploading...";
+    button.textContent = hasPhoto ? "Uploading..." : "Saving...";
     try {
         await api("POST", "/api/staff/orders/" + order.order_id + "/deliver", form);
         await loadRiders();
         await loadQueue();
-        message("queueMessage", "Order #" + order.order_id + " delivered. The customer can now see the proof and rate the rider.");
+        message("queueMessage", "Order #" + order.order_id + " delivered. The customer can now download the proof of delivery and rate the rider.");
     } catch (error) {
         button.disabled = false;
         button.textContent = "Mark as Delivered";
