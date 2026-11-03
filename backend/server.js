@@ -772,7 +772,7 @@ app.get('/api/orders/:id/details', requireLogin, wrap(async (req, res) => {
   if (!order.customer) order.customer = 'Customer #' + order.user_id; // riders see the name below instead
 
   const [items] = await q(req,
-    `SELECT p.product_id, p.sku, p.product_name AS name, oi.quantity, oi.unit_price AS price,
+    `SELECT p.product_id, p.sku, p.product_name AS name, p.image_url, oi.quantity, oi.unit_price AS price,
             oi.quantity * oi.unit_price AS subtotal,
             s.supplier_name, s.city AS supplier_city,
             r.rating AS my_rating, r.comment AS my_comment
