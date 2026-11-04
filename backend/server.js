@@ -673,11 +673,19 @@ function mailTemplate(title, bodyHtml) {
 }
 
 async function sendOrderEmail(order, user) {
-  const to = user && user.email;
+  // The JWT only carries id/role/name — look up the email from the database.
+  let to = user && user.email;
+  let name = (user && user.name) || 'customer';
+  if (!to && user && user.id) {
+    try {
+      const [rows] = await sys('SELECT email, CONCAT(first_name, " ", last_name) AS name FROM users WHERE user_id = ?', [user.id]);
+      if (rows[0]) { to = rows[0].email; name = rows[0].name || name; }
+    } catch (err) { log('warn', 'order email lookup failed', { err: err.message }); }
+  }
   if (!to) return;
   const total = Number(order.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const html = mailTemplate('Order Confirmed 🎉',
-    `<p style="margin:0 0 12px">Hi <b>${user.name || 'customer'}</b>, salamat sa iyong order!</p>
+    `<p style="margin:0 0 12px">Hi <b>${name}</b>, salamat sa iyong order!</p>
      <table style="border-collapse:collapse;font-size:14px">
        <tr><td style="padding:3px 12px 3px 0;color:#6c7590">Order number</td><td><b>#${order.order_id}</b></td></tr>
        <tr><td style="padding:3px 12px 3px 0;color:#6c7590">Total</td><td><b>₱${total}</b></td></tr>
