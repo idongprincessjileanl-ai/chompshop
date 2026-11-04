@@ -99,12 +99,12 @@ app.use(helmet({
     useDefaults: false,
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
       scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
       imgSrc: ["'self'", 'data:', 'blob:'],
-      connectSrc: ["'self'"],
+      connectSrc: ["'self'", 'https://yyssndxeibcjlztcebyg.supabase.co'],
       objectSrc: ["'none'"],
       frameAncestors: ["'none'"],
       baseUri: ["'self'"],
@@ -208,38 +208,112 @@ function issueToken(u) {
   };
 }
 
-// ===================== CAPTCHA (self-hosted math challenge, no external service) =====================
-// A stateless signed token carries the answer; a consumed-token set blocks reuse.
-const captchaUsed = new Map(); // jti -> expiry ms
-setInterval(() => { const now = Date.now(); for (const [k, exp] of captchaUsed) if (exp < now) captchaUsed.delete(k); }, 60 * 1000).unref?.();
+// ===================== CAPTCHA (self-hosted "type the blurry word", no external service) =====================
+// The answer word is kept ONLY on the server (in captchaChallenges, keyed by jti). The client gets
+// an opaque signed token (jti inside, no answer) plus an image URL. The word is revealed solely as
+// rendered pixels in a distorted/blurry SVG served as an image, so it never appears in page source or JSON.
+const captchaUsed = new Map();        // jti -> expiry ms (blocks reuse of a solved token)
+const captchaChallenges = new Map();  // jti -> { word, exp }
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, exp] of captchaUsed) if (exp < now) captchaUsed.delete(k);
+  for (const [k, v] of captchaChallenges) if (v.exp < now) captchaChallenges.delete(k);
+}, 60 * 1000).unref?.();
 
 const CAPTCHA_MINUTES = 5;
 
-// GET a fresh challenge: returns the question text and a signed token that encodes the answer.
+// Short, friendly, easy-to-read words (ambiguous shapes avoided). Answer is case-insensitive.
+const CAPTCHA_WORDS = [
+  'apple', 'bread', 'chair', 'cloud', 'dance', 'eagle', 'frost', 'grape', 'house', 'juice',
+  'lemon', 'mango', 'music', 'ocean', 'piano', 'plant', 'river', 'robot', 'salad', 'smile',
+  'snack', 'stone', 'sugar', 'table', 'tiger', 'toast', 'train', 'water', 'zebra', 'bloom',
+  'candy', 'chomp', 'cheese', 'coffee', 'donut', 'dragon', 'flower', 'garden', 'guitar', 'orange',
+  'pepper', 'planet', 'rocket', 'silver', 'summer', 'tomato', 'wonder', 'yellow'
+];
+
+// Letter colours for light mode (dark inks) and dark mode (light inks) so the word always
+// reads clearly against the matching background and feels part of the page's theme.
+const CAPTCHA_COLORS = ['#1e2a4a', '#2b3a67', '#3a2d5c', '#1f4536', '#5c2b2b', '#2c2c54', '#334155'];
+const CAPTCHA_COLORS_DARK = ['#e8edf9', '#e8c868', '#7fd6a3', '#f29b8f', '#9ec5ff', '#c9b8ff', '#cbd5e1'];
+function rnd(min, max) { return min + Math.random() * (max - min); }
+
+// Build a distorted, slightly blurry SVG of the word. Letters are individually rotated, nudged and
+// colored; faint curved noise lines and dots sit on top; a gaussian blur + turbulence displacement
+// keep it machine-unfriendly while staying human-readable. `dark` picks a dark background with
+// light inks so the captcha matches the page when the user is in dark mode.
+function captchaSvg(word, dark = false) {
+  const W = 230, H = 80;
+  const palette = dark ? CAPTCHA_COLORS_DARK : CAPTCHA_COLORS;
+  const bg = dark ? '#141f33' : '#f4f5f8';
+  const dotColor = dark ? '#9aa7c4' : '#334155';
+  const letters = word.toUpperCase().split('');
+  const step = (W - 40) / letters.length;
+  let glyphs = '';
+  letters.forEach((ch, i) => {
+    const x = 24 + i * step + rnd(-4, 4);
+    const y = H / 2 + rnd(-6, 6);
+    const rot = rnd(-20, 20);
+    const size = rnd(30, 40);
+    const color = palette[Math.floor(Math.random() * palette.length)];
+    glyphs += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="${size.toFixed(1)}" fill="${color}" transform="rotate(${rot.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})" dominant-baseline="middle" text-anchor="middle">${ch}</text>`;
+  });
+  let lines = '';
+  for (let i = 0; i < 3; i++) {
+    const y1 = rnd(10, H - 10), y2 = rnd(10, H - 10), cy = rnd(0, H);
+    const color = palette[Math.floor(Math.random() * palette.length)];
+    lines += `<path d="M0 ${y1.toFixed(1)} Q ${(W / 2).toFixed(1)} ${cy.toFixed(1)} ${W} ${y2.toFixed(1)}" stroke="${color}" stroke-width="${rnd(1, 2).toFixed(1)}" fill="none" opacity="0.4"/>`;
+  }
+  let dots = '';
+  for (let i = 0; i < 40; i++) {
+    dots += `<circle cx="${rnd(0, W).toFixed(1)}" cy="${rnd(0, H).toFixed(1)}" r="${rnd(0.5, 1.6).toFixed(1)}" fill="${dotColor}" opacity="0.35"/>`;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="CAPTCHA image">
+<defs>
+  <filter id="d"><feTurbulence type="fractalNoise" baseFrequency="0.018 0.03" numOctaves="2" seed="${Math.floor(rnd(0, 9999))}" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="6" xChannelSelector="R" yChannelSelector="G"/></filter>
+  <filter id="b"><feGaussianBlur stdDeviation="0.9"/></filter>
+</defs>
+<rect width="${W}" height="${H}" fill="${bg}"/>
+<g filter="url(#b)"><g filter="url(#d)">${glyphs}${lines}</g></g>
+${dots}
+</svg>`;
+}
+
+// GET a fresh challenge: stores the word server-side, returns an opaque token + the image URL.
 app.get('/api/captcha', wrap(async (req, res) => {
-  const a = crypto.randomInt(1, 10);
-  const b = crypto.randomInt(1, 10);
-  const ops = [['+', a + b], ['x', a * b], ['-', a + b >= b ? a : b]]; // keep results non-negative
-  const [sym, answer] = ops[crypto.randomInt(0, ops.length)];
-  const x = sym === '-' ? Math.max(a, b) : a;
-  const y = sym === '-' ? Math.min(a, b) : b;
-  const realAnswer = sym === '+' ? x + y : sym === 'x' ? x * y : x - y;
+  const word = CAPTCHA_WORDS[crypto.randomInt(0, CAPTCHA_WORDS.length)];
   const jti = crypto.randomUUID();
-  const token = jwt.sign({ a: realAnswer, jti, scope: 'captcha' }, JWT_SECRET, { expiresIn: `${CAPTCHA_MINUTES}m` });
-  res.json({ question: `${x} ${sym} ${y}`, token });
+  captchaChallenges.set(jti, { word, exp: Date.now() + CAPTCHA_MINUTES * 60 * 1000 });
+  const token = jwt.sign({ jti, scope: 'captcha' }, JWT_SECRET, { expiresIn: `${CAPTCHA_MINUTES}m` });
+  res.json({ token, image: `/api/captcha/image/${jti}` });
 }));
 
-// Returns true only for a valid, unexpired, unused token whose answer matches. Missing/invalid/expired/reused -> false.
+// Serve the distorted word as an image (never cached). The answer lives only in these pixels.
+app.get('/api/captcha/image/:jti', wrap(async (req, res) => {
+  const ch = captchaChallenges.get(req.params.jti);
+  const dark = req.query.theme === 'dark';
+  res.set('Cache-Control', 'no-store, max-age=0');
+  res.type('image/svg+xml');
+  if (!ch || ch.exp < Date.now()) {
+    const bg = dark ? '#141f33' : '#f4f5f8';
+    return res.status(404).send(`<svg xmlns="http://www.w3.org/2000/svg" width="230" height="80"><rect width="230" height="80" fill="${bg}"/><text x="115" y="46" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#9aa7c4">expired — tap ↻</text></svg>`);
+  }
+  res.send(captchaSvg(ch.word, dark));
+}));
+
+// Returns true only for a valid, unexpired, unused token whose typed word matches. Case-insensitive.
 function verifyCaptcha(req) {
   const token = req.body?.captcha_token;
-  const given = Number(req.body?.captcha_answer);
-  if (!token || !Number.isFinite(given)) return false;
+  const given = String(req.body?.captcha_answer || '').trim().toLowerCase();
+  if (!token || !given) return false;
   let p;
   try { p = jwt.verify(token, JWT_SECRET); } catch { return false; }
-  if (p.scope !== 'captcha' || typeof p.a !== 'number' || !p.jti) return false;
+  if (p.scope !== 'captcha' || !p.jti) return false;
   if (captchaUsed.has(p.jti)) return false;           // reused token
-  if (given !== p.a) return false;                    // wrong answer
+  const ch = captchaChallenges.get(p.jti);
+  if (!ch || ch.exp < Date.now()) return false;       // unknown/expired challenge
+  if (given !== ch.word.toLowerCase()) return false;  // wrong word
   captchaUsed.set(p.jti, (p.exp || 0) * 1000 || Date.now() + CAPTCHA_MINUTES * 60 * 1000);
+  captchaChallenges.delete(p.jti);                    // one-time use
   return true;
 }
 
@@ -343,6 +417,25 @@ app.post('/api/auth/register', registerLimiter, wrap(async (req, res) => {
 
   // Normalise the phone to 11 digits (09XXXXXXXXX) before saving
   data.phone = normalisePHMobile(data.phone);
+
+  // Verify the sign-up email via Supabase email OTP: the page emails a code to this address
+  // and confirms it, then sends the Supabase access token here so we re-check it server-side.
+  {
+    const SB_URL = process.env.SUPABASE_URL || 'https://yyssndxeibcjlztcebyg.supabase.co';
+    const SB_ANON = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5c3NuZHhlaWJjamx6dGNlYnlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIzMzQzNDgsImV4cCI6MjEwNzkxMDM0OH0.8AV4kjMqCY6vYHJYnSUmlEpMvEZ5ZQyfdq9KaSkJSVk';
+    const sbToken = String(b.sb_access_token || '').trim();
+    if (!sbToken) return res.status(400).json({ error: 'Please verify the code sent to your email first.', code: 'OTP_REQUIRED' });
+    try {
+      const r = await fetch(SB_URL + '/auth/v1/user', { headers: { Authorization: 'Bearer ' + sbToken, apikey: SB_ANON } });
+      if (!r.ok) return res.status(400).json({ error: 'Email code not verified. Please try again.', code: 'OTP_FAILED' });
+      const sbUser = await r.json();
+      const sbEmail = String(sbUser?.email || '').toLowerCase();
+      if (!sbEmail || sbEmail !== data.email) return res.status(400).json({ error: 'The verified email must match the email you are signing up with.', code: 'OTP_MISMATCH' });
+    } catch (err) {
+      log('warn', 'supabase register otp verify failed', { err: err.message });
+      return res.status(400).json({ error: 'Could not verify your email right now. Please try again.', code: 'OTP_ERROR' });
+    }
+  }
 
   const hash = await bcrypt.hash(password, 10);
   const conn = await staffPool.getConnection();
@@ -485,32 +578,170 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 const MAIL_FROM = process.env.MAIL_FROM || 'Chomp Shop <onboarding@resend.dev>';
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || '';
 
-async function sendOrderEmail(order, user) {
-  if (!RESEND_API_KEY) return;
-  const to = [user.email].filter(Boolean);
-  if (ADMIN_EMAIL && !to.includes(ADMIN_EMAIL)) to.push(ADMIN_EMAIL);
-  if (!to.length) return;
-  const total = Number(order.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:auto;color:#13254a">
-    <h2 style="margin:0 0 8px">Chomp Shop — Order Confirmed 🎉</h2>
-    <p style="margin:0 0 12px">Hi ${user.name || 'customer'}, salamat sa iyong order!</p>
-    <table style="border-collapse:collapse;font-size:14px">
-      <tr><td style="padding:3px 10px 3px 0;color:#6c7590">Order number</td><td><b>#${order.order_id}</b></td></tr>
-      <tr><td style="padding:3px 10px 3px 0;color:#6c7590">Total</td><td><b>₱${total}</b></td></tr>
-      <tr><td style="padding:3px 10px 3px 0;color:#6c7590">Status</td><td>Pending — awaiting confirmation</td></tr>
-    </table>
-    <p style="margin:12px 0 0">Bibigyan ka namin ng update habang pinoproseso ang order mo.</p>
-    <p style="color:#6c7590;font-size:12px;margin-top:18px">Chomp Shop · Online Store</p></div>`;
+// ---------- Email notifications: Gmail SMTP preferred (reaches any customer), Resend as fallback ----------
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
+const SMTP_PORT = Number(process.env.SMTP_PORT) || 465;
+const SMTP_USER = process.env.SMTP_USER || '';
+const SMTP_PASS = process.env.SMTP_PASS || '';
+const MAIL_FROM_NAME = process.env.MAIL_FROM_NAME || 'Chomp Shop';
+const tls = require('tls');
+
+// Minimal SMTP-over-TLS sender — no external dependency. Gmail: smtp.gmail.com:465.
+function smtpSendMail(to, subject, html) {
+  return new Promise((resolve, reject) => {
+    const socket = tls.connect({ host: SMTP_HOST, port: SMTP_PORT, servername: SMTP_HOST });
+    socket.setEncoding('utf8');
+    const b64 = (s) => Buffer.from(String(s), 'utf8').toString('base64');
+    const body = String(html).replace(/\r?\n/g, '\r\n').replace(/\r\n\./g, '\r\n..');
+    const message =
+      `From: ${MAIL_FROM_NAME} <${SMTP_USER}>\r\n` +
+      `To: ${to}\r\n` +
+      `Subject: ${subject}\r\n` +
+      `MIME-Version: 1.0\r\n` +
+      `Content-Type: text/html; charset=UTF-8\r\n\r\n` + body;
+    const steps = [
+      { code: 220, cmd: `EHLO chompshop\r\n` },
+      { code: 250, cmd: `AUTH LOGIN\r\n` },
+      { code: 334, cmd: `${b64(SMTP_USER)}\r\n` },
+      { code: 334, cmd: `${b64(SMTP_PASS)}\r\n` },
+      { code: 235, cmd: `MAIL FROM:<${SMTP_USER}>\r\n` },
+      { code: 250, cmd: `RCPT TO:<${to}>\r\n` },
+      { code: 250, cmd: `DATA\r\n` },
+      { code: 354, cmd: message + `\r\n.\r\n` },
+      { code: 250, cmd: `QUIT\r\n` },
+      { code: 221, cmd: null },
+    ];
+    let ptr = 0, buffer = '', settled = false;
+    const timer = setTimeout(() => finish(new Error('SMTP timeout')), 20000);
+    function finish(err) {
+      if (settled) return; settled = true; clearTimeout(timer);
+      try { socket.destroy(); } catch {}
+      err ? reject(err) : resolve(true);
+    }
+    socket.on('error', finish);
+    socket.on('data', (chunk) => {
+      buffer += chunk; let i;
+      while ((i = buffer.indexOf('\r\n')) !== -1) {
+        const line = buffer.slice(0, i); buffer = buffer.slice(i + 2);
+        if (/^\d{3}-/.test(line)) continue; // multiline continuation, wait for the final line
+        if (settled) return;
+        const code = parseInt(line.slice(0, 3), 10);
+        if (code !== steps[ptr].code) return finish(new Error('SMTP ' + line));
+        const cmd = steps[ptr].cmd; ptr++;
+        if (cmd === null) return finish();
+        socket.write(cmd);
+      }
+    });
+  });
+}
+
+async function resendSendMail(to, subject, html) {
+  if (!RESEND_API_KEY) return false;
   try {
     const r = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + RESEND_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: MAIL_FROM, to, subject: `Chomp Shop — Order #${order.order_id} confirmed`, html }),
+      body: JSON.stringify({ from: MAIL_FROM, to: [to], subject, html }),
     });
-    if (!r.ok) log('warn', 'order email failed', { status: r.status, body: (await r.text()).slice(0, 200) });
-    else log('info', 'order email sent', { order: order.order_id, to: to.length });
-  } catch (err) { log('warn', 'order email error', { order: order.order_id, err: err.message }); }
+    return r.ok;
+  } catch { return false; }
 }
+
+// Best-effort unified sender — never throws, never blocks the request.
+async function sendMail(to, subject, html) {
+  if (!to) return;
+  try {
+    if (SMTP_USER && SMTP_PASS) { await smtpSendMail(to, subject, html); log('info', 'email sent (smtp)', { to, subject }); return; }
+    if (await resendSendMail(to, subject, html)) { log('info', 'email sent (resend)', { to, subject }); return; }
+    log('info', 'email not sent (no email provider configured)', { subject });
+  } catch (err) { log('warn', 'email failed', { to, subject, err: err.message }); }
+}
+
+// Branded HTML wrapper for notification emails.
+function mailTemplate(title, bodyHtml) {
+  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:auto;background:#f4f5f8;padding:0 0 18px;border-radius:12px;overflow:hidden">
+    <div style="background:#13254a;color:#fff;padding:18px 22px;border-bottom:3px solid #c9a23f">
+      <div style="font:800 20px Arial;letter-spacing:.04em">CHOMP <span style="color:#e8c868">SHOP</span></div>
+      <div style="font-size:11px;color:#c9d2e6;letter-spacing:.18em;margin-top:2px">ELECTRONICS &amp; GADGETS</div>
+    </div>
+    <div style="padding:20px 22px;color:#2b3550;font-size:14px;line-height:1.55">
+      <h2 style="margin:0 0 10px;color:#13254a;font-size:18px">${title}</h2>
+      ${bodyHtml}
+    </div>
+    <div style="text-align:center;color:#6c7590;font-size:11px;padding:0 22px">Chomp Shop · Online Store</div>
+  </div>`;
+}
+
+async function sendOrderEmail(order, user) {
+  const to = user && user.email;
+  if (!to) return;
+  const total = Number(order.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const html = mailTemplate('Order Confirmed 🎉',
+    `<p style="margin:0 0 12px">Hi <b>${user.name || 'customer'}</b>, salamat sa iyong order!</p>
+     <table style="border-collapse:collapse;font-size:14px">
+       <tr><td style="padding:3px 12px 3px 0;color:#6c7590">Order number</td><td><b>#${order.order_id}</b></td></tr>
+       <tr><td style="padding:3px 12px 3px 0;color:#6c7590">Total</td><td><b>₱${total}</b></td></tr>
+       <tr><td style="padding:3px 12px 3px 0;color:#6c7590">Status</td><td>Pending — awaiting confirmation</td></tr>
+     </table>
+     <p style="margin:12px 0 0">Bibigyan ka namin ng update habang pinoproseso ang order mo. 🚚</p>`);
+  if (ADMIN_EMAIL) sendMail(ADMIN_EMAIL, `New order #${order.order_id}`, html);
+  await sendMail(to, `Chomp Shop — Order #${order.order_id} confirmed`, html);
+}
+
+// ===================== ORDER OTP (one-time code shown at checkout) =====================
+// A 6-digit code per customer, kept in memory with a short expiry. For this classroom demo the code
+// is returned so the page can show it on screen; it is also emailed when email is configured.
+const orderOtps = new Map(); // userId -> { code, exp, attempts }
+setInterval(() => { const now = Date.now(); for (const [k, v] of orderOtps) if (v.exp < now) orderOtps.delete(k); }, 60 * 1000).unref?.();
+const OTP_MINUTES = 10;
+function makeOtp() { return String(crypto.randomInt(0, 1000000)).padStart(6, '0'); }
+
+async function sendOtpEmail(code, user) {
+  if (!RESEND_API_KEY) return;
+  const to = [user.email].filter(Boolean);
+  if (!to.length) return;
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:420px;margin:auto;color:#13254a">
+    <h2 style="margin:0 0 8px">Chomp Shop — Order code</h2>
+    <p style="margin:0 0 12px">Hi ${user.name || 'customer'}, use this code to confirm your order:</p>
+    <p style="font-size:30px;font-weight:800;letter-spacing:8px;margin:0 0 10px">${code}</p>
+    <p style="color:#6c7590;font-size:12px">This code expires in ${OTP_MINUTES} minutes. Do not share it.</p></div>`;
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + RESEND_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: MAIL_FROM, to, subject: 'Chomp Shop — your order code', html }),
+    });
+    if (!r.ok) log('warn', 'otp email failed', { status: r.status });
+  } catch (err) { log('warn', 'otp email error', { err: err.message }); }
+}
+
+// Generate a one-time code for the current customer's checkout.
+app.post('/api/checkout/otp', checkoutLimiter, requireRole('Customer'), wrap(async (req, res) => {
+  const code = makeOtp();
+  orderOtps.set(req.user.id, { code, exp: Date.now() + OTP_MINUTES * 60 * 1000, attempts: 0 });
+  sendOtpEmail(code, req.user).catch(() => {}); // best-effort email; never blocks
+  res.json({ code, expires_in: OTP_MINUTES * 60 }); // code returned for the on-screen demo
+}));
+
+// ===================== VOUCHERS (claimable discount codes) =====================
+const VOUCHERS = [
+  { code: 'WELCOME100', label: '₱100 OFF', type: 'fixed',   value: 100, min: 800,  desc: '₱100 off orders ₱800 and up' },
+  { code: 'CHOMP10',    label: '10% OFF',  type: 'percent', value: 10,  min: 1000, maxDiscount: 500, desc: '10% off orders ₱1,000+ (max ₱500)' },
+  { code: 'SAVE50',     label: '₱50 OFF',  type: 'fixed',   value: 50,  min: 300,  desc: '₱50 off orders ₱300 and up' },
+];
+function findVoucher(code) { return VOUCHERS.find((v) => v.code === String(code || '').trim().toUpperCase()) || null; }
+function voucherDiscount(v, subtotal) {
+  if (!v || subtotal < v.min) return 0;
+  let d = v.type === 'percent' ? subtotal * (v.value / 100) : v.value;
+  if (v.maxDiscount) d = Math.min(d, v.maxDiscount);
+  return Math.min(Math.round(d * 100) / 100, subtotal);
+}
+
+// Public list of voucher codes the shop is offering (shown in the claim popup).
+app.get('/api/vouchers', wrap(async (req, res) => {
+  res.json(VOUCHERS.map(({ code, label, type, value, min, maxDiscount, desc }) =>
+    ({ code, label, type, value, min, maxDiscount: maxDiscount || null, desc })));
+}));
 
 app.post('/api/checkout', checkoutLimiter, requireRole('Customer'), wrap(async (req, res) => {
   const body = req.body || {};
@@ -522,6 +753,25 @@ app.post('/api/checkout', checkoutLimiter, requireRole('Customer'), wrap(async (
     return res.status(400).json({ error: 'Payment method must be GCASH, MAYA, CARD or COD' });
   if (!items.length) return res.status(400).json({ error: 'Cart is empty' });
 
+  // Email OTP via Supabase: the page emails a 6-digit code to the customer, confirms it with
+  // Supabase, then sends the Supabase access token here so we double-check the email server-side.
+  const SB_URL = process.env.SUPABASE_URL || 'https://yyssndxeibcjlztcebyg.supabase.co';
+  const SB_ANON = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5c3NuZHhlaWJjamx6dGNlYnlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIzMzQzNDgsImV4cCI6MjEwNzkxMDM0OH0.8AV4kjMqCY6vYHJYnSUmlEpMvEZ5ZQyfdq9KaSkJSVk';
+  const sbToken = String(body.sb_access_token || '').trim();
+  if (!sbToken) return res.status(400).json({ error: 'Please verify the code sent to your email first.', code: 'OTP_REQUIRED' });
+  try {
+    const r = await fetch(SB_URL + '/auth/v1/user', { headers: { Authorization: 'Bearer ' + sbToken, apikey: SB_ANON } });
+    if (!r.ok) return res.status(400).json({ error: 'Email code not verified. Please try again.', code: 'OTP_FAILED' });
+    const sbUser = await r.json();
+    const sbEmail = String(sbUser?.email || '').toLowerCase();
+    const [urows] = await sys('SELECT email FROM users WHERE user_id = ?', [req.user.id]);
+    const myEmail = String(urows[0]?.email || '').toLowerCase();
+    if (!sbEmail || !myEmail || sbEmail !== myEmail) return res.status(400).json({ error: 'The verified email must match your account email.', code: 'OTP_MISMATCH' });
+  } catch (err) {
+    log('warn', 'supabase otp verify failed', { err: err.message });
+    return res.status(400).json({ error: 'Could not verify your email right now. Please try again.', code: 'OTP_ERROR' });
+  }
+
   const [addr] = await q(req,
     'SELECT address_id FROM rls_customer_addresses WHERE user_id = ? ORDER BY is_default DESC, address_id LIMIT 1',
     [req.user.id]);
@@ -530,7 +780,23 @@ app.post('/api/checkout', checkoutLimiter, requireRole('Customer'), wrap(async (
   const [sets] = await q(req, 'CALL sp_place_order(?, ?, ?, ?, @order_id)',
     [req.user.id, addr[0].address_id, JSON.stringify(items), method]);
   const order = sets[0][0];
-  audit(req, 'checkout', 'order', order.order_id, { total: order.total_amount, method, items: items.length });
+
+  // Apply a voucher discount if one was given and the order qualifies (lowers the stored payment total)
+  const subtotal = Number(order.total_amount) || 0;
+  const voucher = findVoucher(body.voucher_code);
+  const discount = voucherDiscount(voucher, subtotal);
+  if (discount > 0) {
+    const finalTotal = Math.round((subtotal - discount) * 100) / 100;
+    try {
+      await sys('UPDATE payments SET amount = ? WHERE order_id = ?', [finalTotal, order.order_id]);
+      order.subtotal = subtotal;
+      order.discount = discount;
+      order.voucher_code = voucher.code;
+      order.total_amount = finalTotal;
+    } catch (err) { log('warn', 'voucher discount update failed', { order: order.order_id, err: err.message }); }
+  }
+
+  audit(req, 'checkout', 'order', order.order_id, { total: order.total_amount, discount, voucher: order.voucher_code || null, method, items: items.length });
   // AI fraud check (never blocks the checkout if it fails)
   try { await scoreOrder(order.order_id); } catch (err) { log('warn', 'AI fraud check failed', { order: order.order_id, err: err.message }); }
   // Send order confirmation email (fire-and-forget; never blocks or fails the checkout)
@@ -589,7 +855,7 @@ app.get('/api/orders/:id/details', requireLogin, wrap(async (req, res) => {
   if (!order.customer) order.customer = 'Customer #' + order.user_id; // riders see the name below instead
 
   const [items] = await q(req,
-    `SELECT p.product_id, p.sku, p.product_name AS name, oi.quantity, oi.unit_price AS price,
+    `SELECT p.product_id, p.sku, p.product_name AS name, p.image_url, oi.quantity, oi.unit_price AS price,
             oi.quantity * oi.unit_price AS subtotal,
             s.supplier_name, s.city AS supplier_city,
             r.rating AS my_rating, r.comment AS my_comment
@@ -782,11 +1048,11 @@ app.post('/api/staff/orders/:id/ship', staffOnly, wrap(async (req, res) => {
   res.json({ ...sets[0][0], driver_name: d[0].full_name });
 }));
 
-// Deliver: proof photo required. A rider can only deliver their own orders (also enforced by a DB trigger).
+// Deliver: proof photo is OPTIONAL (the app also generates a per-item proof-of-delivery slip).
+// A rider can only deliver their own orders (also enforced by a DB trigger).
 app.post('/api/staff/orders/:id/deliver', uploadLimiter, requireRole(...STAFF_ROLES, 'Rider'),
   uploadProof.single('proof'), wrap(async (req, res) => {
     const removeUpload = () => req.file && fs.unlink(req.file.path, () => {});
-    if (!req.file) return res.status(400).json({ error: 'Attach a photo as proof of delivery (max 8MB)' });
 
     const recipient = String(req.body?.recipient_name || '').trim().slice(0, 100);
     const notes = String(req.body?.notes || '').trim().slice(0, 255) || null;
@@ -805,11 +1071,29 @@ app.post('/api/staff/orders/:id/deliver', uploadLimiter, requireRole(...STAFF_RO
       removeUpload();
       throw err;
     }
-    const url = '/uploads/proofs/' + req.file.filename;
+    const url = req.file ? '/uploads/proofs/' + req.file.filename : null;
     await q(req,
       'UPDATE deliveries SET delivered_at = NOW(), recipient_name = ?, proof_image_url = ?, notes = ? WHERE order_id = ?',
       [recipient, url, notes, req.params.id]);
-    audit(req, 'order_deliver', 'order', req.params.id, { proof: url });
+    audit(req, 'order_deliver', 'order', req.params.id, { proof: url || 'none' });
+
+    // Notify the customer that their order was delivered (best-effort; never blocks the response).
+    (async () => {
+      try {
+        const [crows] = await sys(
+          'SELECT u.email, CONCAT(u.first_name, " ", u.last_name) AS name FROM orders o JOIN users u ON u.user_id = o.user_id WHERE o.order_id = ?',
+          [req.params.id]);
+        const c = crows[0];
+        if (c && c.email) {
+          const html = mailTemplate('Your order was delivered ✅',
+            `<p style="margin:0 0 10px">Hi <b>${c.name || 'customer'}</b>, your order <b>#${req.params.id}</b> has been <b>delivered</b>${recipient ? ' to <b>' + recipient + '</b>' : ''}.</p>
+             <p style="margin:0 0 10px">You can view your <b>proof of delivery</b> anytime in <b>My Orders</b>, and rate your rider.</p>
+             <p style="margin:0">Salamat sa pagbili sa Chomp Shop! 🛒</p>`);
+          sendMail(c.email, `Chomp Shop — Order #${req.params.id} delivered`, html);
+        }
+      } catch (err) { log('warn', 'delivered email error', { err: err.message }); }
+    })();
+
     res.json({ order_id: Number(req.params.id), status: 'DELIVERED', proof_image_url: url });
   }));
 
