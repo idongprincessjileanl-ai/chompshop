@@ -5512,7 +5512,10 @@ function otpModal(initialCode, method, opts) {
         const emailMode = typeof opts.verify === "function";
         let shownCode = initialCode;
         const isWallet = method === "GCASH" || method === "MAYA";
+        const isCard = method === "CARD";
+        const isPay = isWallet || isCard;
         const walletName = method === "MAYA" ? "Maya" : "GCash";
+        const cardEnding = (() => { const v = (($("ccInput") && $("ccInput").value) || "").replace(/\D/g, ""); return v.length >= 4 ? v.slice(-4) : ""; })();
         const subt = selectedCart().reduce((s, i) => s + i.price * i.quantity, 0);
         const vch = appliedVoucher ? voucherByCode(appliedVoucher) : null;
         const amt = Math.max(0, subt - jsDiscount(vch, subt));
@@ -5520,21 +5523,26 @@ function otpModal(initialCode, method, opts) {
         overlay.setAttribute("role", "dialog");
         overlay.setAttribute("aria-modal", "true");
         overlay.setAttribute("aria-labelledby", "otpTitle");
-        const card = el("div", "co-card" + (isWallet ? " pay-card" : ""));
+        const card = el("div", "co-card" + (isPay ? " pay-card" : ""));
 
         const head = el("div", "co-head");
-        head.appendChild(el("div", "co-icon", isWallet ? "📱" : "🔐"));
-        const h = el("h3", null, isWallet ? (walletName + " ") : ((opts.titleWord || "Verify") + " "));
+        head.appendChild(el("div", "co-icon", isWallet ? "📱" : isCard ? "💳" : "🔐"));
+        const h = el("h3", null, isWallet ? (walletName + " ") : isCard ? "Card " : ((opts.titleWord || "Verify") + " "));
         h.id = "otpTitle";
-        h.appendChild(el("span", null, isWallet ? "Payment" : (opts.titleSpan || "Order")));
+        h.appendChild(el("span", null, isPay ? "Payment" : (opts.titleSpan || "Order")));
         head.append(h, el("p", null, isWallet
             ? ("Authorize your " + walletName + " payment to place the order.")
+            : isCard
+            ? "Authorize your card payment to place the order."
             : (opts.subtitle || "Enter the one-time code to place your order.")));
 
         const body = el("div", "co-body");
-        if (isWallet) {
+        if (isPay) {
             const pay = el("div", "otp-pay");
-            pay.append(el("span", null, "Amount to pay via " + walletName), el("b", null, money(amt)));
+            const payLabel = isWallet
+                ? ("Amount to pay via " + walletName)
+                : ("Amount to charge" + (cardEnding ? " · card ···· " + cardEnding : " to your card"));
+            pay.append(el("span", null, payLabel), el("b", null, money(amt)));
             body.appendChild(pay);
         }
         let codeBox = null;
@@ -5549,7 +5557,7 @@ function otpModal(initialCode, method, opts) {
             codeBox = el("div", "otp-code", shownCode);
             body.appendChild(codeBox);
         }
-        const label = el("label", "otp-label", emailMode ? "Enter the code from your email" : (isWallet ? ("Enter your " + walletName + " code") : "Type the code to confirm"));
+        const label = el("label", "otp-label", emailMode ? (isPay ? "Enter the code to authorize your payment" : "Enter the code from your email") : (isWallet ? ("Enter your " + walletName + " code") : "Type the code to confirm"));
         label.setAttribute("for", "otpField");
         body.appendChild(label);
         const input = el("input", "otp-input");
@@ -5569,7 +5577,7 @@ function otpModal(initialCode, method, opts) {
 
         const actions = el("div", "co-actions");
         const cancel = el("button", "co-cancel", "Cancel");
-        const ok = el("button", "co-ok", isWallet ? ("Pay " + money(amt)) : (opts.okLabel || "Confirm Order"));
+        const ok = el("button", "co-ok", isPay ? ("Pay " + money(amt)) : (opts.okLabel || "Confirm Order"));
         cancel.type = ok.type = "button";
         actions.append(cancel, ok);
 
